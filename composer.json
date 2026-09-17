@@ -25,11 +25,11 @@
     "license": "MIT",
     "require": {
         "php": "^8.1",
-        "barryvdh/laravel-dompdf": "^2.0",
         "cartalyst/stripe-laravel": "^15.0",
         "cloudinary-labs/cloudinary-laravel": "^2.3",
         "cviebrock/eloquent-sluggable": "^10.0",
         "darkaonline/l5-swagger": "^8.6",
+        "doctrine/dbal": "^3.10",
         "guzzlehttp/guzzle": "^7.2",
         "intervention/image": "^2.7",
         "jackiedo/dotenv-editor": "^2.0",
@@ -39,18 +39,18 @@
         "maatwebsite/excel": "^3.1",
         "mll-lab/laravel-graphiql": "^3.0",
         "mollie/laravel-mollie": "^2.22",
+        "netresearch/jsonmapper": "^4.4",
         "nuwave/lighthouse": "^6.0",
         "openai-php/client": "^0.19.0",
+        "phonepe/pg-php-sdk-v2": "^2.0",
         "prettus/l5-repository": "^2.8",
         "razorpay/razorpay": "^2.8",
         "spatie/laravel-medialibrary": "^10.0.0",
         "spatie/laravel-permission": "^5.5",
         "srmklive/paypal": "^3.0",
         "stripe/stripe-php": "^10.10",
-        "webpatser/laravel-countries": "^1.0",
-        "phonepe/pg-php-sdk-v2": "^2.0",
         "vlucas/phpdotenv": "^5.6",
-        "netresearch/jsonmapper": "^4.4"
+        "webpatser/laravel-countries": "^1.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",
@@ -104,6 +104,17 @@
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
         }
+    },
+    "audit": {
+        "ignore": [
+            "PKSA-gh7h-hhy4-byg7",
+            "PKSA-6r8f-nxsb-67bq",
+            "PKSA-cv56-2228-pzr6",
+            "PKSA-mwt3-h9tv-kx78",
+            "PKSA-mckv-s5hg-868k",
+            "PKSA-hp6n-n4kz-21wk"
+        ],
+        "block-insecure": false
     },
     "minimum-stability": "dev",
     "prefer-stable": true

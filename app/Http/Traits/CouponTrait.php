@@ -113,7 +113,7 @@ trait CouponTrait
 
   public function percentageDiscount($subtotal, $couponAmount)
   {
-    if ($subtotal >= $couponAmount && $subtotal > 0) {
+    if ($subtotal > 0 && $couponAmount > 0) {
       return ($subtotal * $couponAmount) / 100;
     }
 

@@ -64,6 +64,21 @@ trait CheckoutTrait
       $settings = Helpers::getSettings();
       $amount = Helpers::getTotalAmount($request->products);
 
+      $coupon = null;
+      $totalEligibleAmount = 0;
+      if (isset($request->coupon)) {
+          $coupon = Helpers::getCoupon($request->coupon);
+          if ($this->isValidCoupon($coupon, $amount, $this->getConsumerId($request))) {
+              foreach ($request->products as $prod) {
+                  if ($this->isIncludeOrExclude($coupon, $prod)) {
+                      $totalEligibleAmount += Helpers::getSubTotal(Helpers::getSalePrice($prod), $prod['quantity']);
+                  }
+              }
+          } else {
+              $coupon = null;
+          }
+      }
+
       foreach ($request->products as $product) {
         $shippingCost = 0;
         $perProductTax = 0;
@@ -108,28 +123,30 @@ trait CheckoutTrait
           }
         }
 
-        if (isset($request->coupon)) {
-          $coupon = Helpers::getCoupon($request->coupon);
-          if ($this->isValidCoupon($coupon, $amount, $this->getConsumerId($request))) {
-            if ($this->isIncludeOrExclude($coupon, $product)) {
-              switch ($coupon->type) {
-                case AmountEnum::FIXED:
-                  $perProductDiscount = $this->fixedDiscount($subTotal, $coupon->amount);
-                  break;
+        if ($coupon) {
+          if ($this->isIncludeOrExclude($coupon, $product)) {
+            switch ($coupon->type) {
+              case AmountEnum::FIXED:
+                if ($totalEligibleAmount > 0) {
+                    $effectiveCouponAmount = min($coupon->amount, $totalEligibleAmount);
+                    $perProductDiscount = ($subTotal / $totalEligibleAmount) * $effectiveCouponAmount;
+                } else {
+                    $perProductDiscount = 0;
+                }
+                break;
 
-                case AmountEnum::PERCENTAGE:
-                  $perProductDiscount =  $this->percentageDiscount($subTotal, $coupon->amount);
-                  break;
+              case AmountEnum::PERCENTAGE:
+                $perProductDiscount =  $this->percentageDiscount($subTotal, $coupon->amount);
+                break;
 
-                default:
-                  $perProductShippingCost = 0;
-                  $shippingTotal = 0;
-              }
-
-              $couponTotalDiscount[] = $perProductDiscount;
-              // Reduce the GST-inclusive line total by the coupon discount
-              $subTotal = $subTotal - $perProductDiscount;
+              default:
+                $perProductShippingCost = 0;
+                $shippingTotal = 0;
             }
+
+            $couponTotalDiscount[] = $perProductDiscount;
+            // Reduce the GST-inclusive line total by the coupon discount
+            $subTotal = $subTotal - $perProductDiscount;
           }
         }
 
