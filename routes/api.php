@@ -221,6 +221,10 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   Route::post('role/deleteAll', 'App\Http\Controllers\RoleController@deleteAll')->middleware('can:role.destroy');
 
   // Products
+  Route::apiResource('product', 'App\Http\Controllers\ProductController', [
+    'only' => ['store', 'update', 'destroy'],
+  ]);
+
   // Products (Barcode-based operations)
   Route::put('product/barcode/{barcode}', 'App\Http\Controllers\ProductController@updateByBarcode')->middleware('can:product.edit');
   Route::delete('product/barcode/{barcode}', 'App\Http\Controllers\ProductController@destroyByBarcode')->middleware('can:product.destroy');
