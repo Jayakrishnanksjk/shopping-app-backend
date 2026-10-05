@@ -17,6 +17,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->call('App\Http\Controllers\CommissionHistoryController@store');
+        $schedule->command('products:sync-badges --limit=10 --trending-window=7')->hourly();
     }
 
     /**

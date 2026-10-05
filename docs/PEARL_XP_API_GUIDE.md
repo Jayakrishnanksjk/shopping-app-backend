@@ -102,3 +102,107 @@ Use these to populate dropdowns or relate to products.
 
 **Built by DMSG Team.**
 For support, contact the system administrator.
+
+---
+
+## Pearl XP Integration
+
+### Master Token Authentication
+
+Pearl XP uses a **master token** to authenticate. This token:
+- Never expires (until manually reset)
+- Authenticates as a full admin user
+- Works across all API endpoints
+
+**How to generate/reset the token:**
+
+Run this command on the server terminal:
+
+```bash
+php artisan master-token:reset
+```
+
+This will:
+1. Revoke any previous master token
+2. Print a new plaintext token to the terminal (shown only once)
+3. Copy and share it with the Pearl XP team
+
+**Usage:**
+
+Include the token in every request:
+
+```
+Authorization: Bearer 4|YK1uY2J3MU4ch5AmFgGPk5eF9Qc96pCAlbtNg535153ca7ec
+```
+
+---
+
+### Submit Product Updates
+
+Update product MRP, price, and stock by matching barcode.
+
+**Endpoint:** `POST /api/pearl-xp/product-updates`
+
+**Headers:**
+- `Authorization: Bearer <master-token>`
+- `Content-Type: application/json`
+
+**Body (single item):**
+```json
+{
+  "barcode": "8901234567890",
+  "mrp": 120.00,
+  "price": 99.00,
+  "stock": 45
+}
+```
+
+**Body (batch):**
+```json
+{
+  "items": [
+    { "barcode": "8901234567890", "mrp": 120.00, "price": 99.00, "stock": 45 },
+    { "barcode": "8901234567891", "mrp": 200.00, "price": 150.00 }
+  ]
+}
+```
+
+**Validation rules:**
+- `barcode` — required, must match an existing product
+- At least one of `mrp`, `price`, or `stock` must be provided
+- All values must be numeric and >= 0
+
+**Response:**
+```json
+{
+  "success": true,
+  "accepted": 2,
+  "failed": 0,
+  "results": [
+    { "barcode": "8901234567890", "success": true, "update_id": 1, "status": "pending" },
+    { "barcode": "8901234567891", "success": true, "update_id": 2, "status": "pending" }
+  ]
+}
+```
+
+- `success` at the top level = all items succeeded
+- Each item returns its own `success` flag and `error` message if failed
+- HTTP 200 is returned either way — check the `success` boolean
+
+**What happens:**
+1. Updates are stored in a staging table with status `pending`
+2. An admin must approve them before they apply to the real products table
+3. The staging row is kept as an audit trail
+
+---
+
+### Error Handling
+
+- If a barcode doesn't match any product, that item gets `success: false` with an error message
+- All errors are logged server-side with the full payload and reason
+- The API always returns HTTP 200 — check the `success` field in the response
+
+---
+
+**Built by DMSG Team.**
+For support, contact the system administrator.
