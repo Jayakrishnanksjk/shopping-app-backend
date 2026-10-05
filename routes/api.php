@@ -158,6 +158,8 @@ Route::get('front/review', 'App\Http\Controllers\ReviewController@frontIndex');
 // ContactUs
 Route::post('/contact-us', 'App\Http\Controllers\ContactUsController@contactUs');
 
+Route::post('pearl-xp/product-updates', 'App\Http\Controllers\PearlXpController@store')->middleware('auth:sanctum');
+
 Route::group(['middleware' => ['localization','auth:sanctum']], function () {
 
   // Authentication
@@ -224,16 +226,21 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   Route::delete('product/barcode/{barcode}', 'App\Http\Controllers\ProductController@destroyByBarcode')->middleware('can:product.destroy');
   Route::put('product/barcode/{barcode}/{status}', 'App\Http\Controllers\ProductController@statusByBarcode')->middleware('can:product.edit');
   Route::put('product/approve/barcode/{barcode}/{status}', 'App\Http\Controllers\ProductController@approveByBarcode')->middleware('can:product.edit');
-
-  Route::apiResource('product', 'App\Http\Controllers\ProductController', [
-    'only' => ['store', 'update', 'destroy'],
-  ]);
-  Route::post('product/replicate', 'App\Http\Controllers\ProductController@replicate')->middleware('can:product.edit');
+  // These remain inside the auth:sanctum group with can:product.edit middleware
   Route::put('product/{id}/{status}', 'App\Http\Controllers\ProductController@status')->middleware('can:product.edit');
   Route::post('product/csv/export', 'App\Http\Controllers\ProductController@export')->name('products.export')->middleware('can:product.index');
   Route::post('product/csv/import', 'App\Http\Controllers\ProductController@import')->middleware('can:product.create');
   Route::put('product/approve/{id}/{status}', 'App\Http\Controllers\ProductController@approve')->middleware('can:product.edit');
   Route::post('product/deleteAll', 'App\Http\Controllers\ProductController@deleteAll')->middleware('can:product.destroy');
+
+  // Pearl XP staged product updates (admin review & accept flow)
+  // Intake (POST without id) stays public with master-token auth above;
+  // these admin routes require sanctum + product permissions.
+  Route::get('pearl-xp/product-updates', 'App\Http\Controllers\PearlXpProductUpdateController@index')->middleware('can:product.index');
+  Route::get('pearl-xp/product-updates/{id}', 'App\Http\Controllers\PearlXpProductUpdateController@show')->middleware('can:product.index');
+  Route::put('pearl-xp/product-updates/{id}', 'App\Http\Controllers\PearlXpProductUpdateController@update')->middleware('can:product.edit');
+  Route::post('pearl-xp/product-updates/{id}/approve', 'App\Http\Controllers\PearlXpProductUpdateController@approve')->middleware('can:product.edit');
+  Route::post('pearl-xp/product-updates/{id}/reject', 'App\Http\Controllers\PearlXpProductUpdateController@reject')->middleware('can:product.edit');
 
   // Featured Products
   Route::apiResource('featured-product', 'App\Http\Controllers\FeaturedProductController', [
