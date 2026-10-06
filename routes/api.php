@@ -67,6 +67,9 @@ Route::apiResource('trending-product', 'App\Http\Controllers\TrendingProductCont
 Route::apiResource('bestselling-product', 'App\Http\Controllers\BestsellingProductController', [
   'only' => ['index'],
 ]);
+Route::apiResource('out-of-stock-product', 'App\Http\Controllers\OutOfStockProductController', [
+  'only' => ['index'],
+]);
 
 // Attributes
 Route::apiResource('attribute', 'App\Http\Controllers\AttributeController',[

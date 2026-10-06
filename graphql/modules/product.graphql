@@ -291,6 +291,8 @@ extend type Query {
         paginate: Int
         store_slug: String
         trending:Boolean
+        out_of_stock:Boolean
+        stock_status:String
         top_selling: Int
         filter_by: String
         with_union_products:Int

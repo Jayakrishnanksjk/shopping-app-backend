@@ -260,6 +260,21 @@ class ProductController extends Controller
             }
         }
 
+        if (isset($request->out_of_stock)) {
+            if (filter_var($request->out_of_stock, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $request->out_of_stock) {
+                $product = $product->where(function ($q) {
+                    $q->where('stock_status', \App\Enums\StockStatus::OUT_OF_STOCK)
+                      ->orWhere('quantity', '<=', 0);
+                });
+            } else {
+                $product = $product->where('stock_status', '!=', \App\Enums\StockStatus::OUT_OF_STOCK)->where('quantity', '>', 0);
+            }
+        }
+
+        if ($request->filled('stock_status')) {
+            $product = $product->where('stock_status', $request->stock_status);
+        }
+
         if ($request->ids) {
             $ids = explode(',',$request->ids);
             $with_union_products = (boolean) $request->with_union_products;
