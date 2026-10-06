@@ -68,3 +68,7 @@ Thumbs.db
 
 # Composer Lock (optional - include if you want consistent dependencies)
 # composer.lock
+
+# Private keys - never commit
+*.pem
+*.key
