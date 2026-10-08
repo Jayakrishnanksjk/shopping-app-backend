@@ -107,72 +107,123 @@ For support, contact the system administrator.
 
 ## Pearl XP Integration
 
-### Master Token Authentication
+This section is all the Pearl XP team needs. Read it top to bottom once.
 
-Pearl XP uses a **master token** to authenticate. This token:
-- Never expires (until manually reset)
-- Authenticates as a full admin user
-- Works across all API endpoints
+### The one-minute mental model
 
-**How to generate/reset the token:**
+You send product updates keyed by **barcode**. The backend treats the three fields differently:
 
-Run this command on the server terminal:
+| You send | What happens | Needs admin approval? |
+| :--- | :--- | :--- |
+| `stock` | Written **immediately** to `products.quantity` (and `stock_status` flips to `in_stock` / `out_of_stock`). | No |
+| `mrp` | Staged as `new_mrp`. Goes live (`products.price`) only after approval. | **Yes** |
+| `price` | Staged as `new_price`. Goes live (`products.sale_price`) only after approval. | **Yes** |
+
+So: stock is fire-and-forget. Prices wait in a review queue.
+
+### 1. Authentication (master token)
+
+Every request needs this header:
+
+```
+Authorization: Bearer <master-token>
+Content-Type: application/json
+```
+
+About the token:
+
+- It never expires (until someone resets it).
+- It acts as a full admin.
+- The plaintext is shown **only once** when created — it cannot be recovered later, only replaced.
+
+**Getting / rotating the token (server admin only):**
 
 ```bash
+cd /home/ubuntu/mstore
 php artisan master-token:reset
+# copy the printed `id|plaintext` value and share it securely
 ```
 
-This will:
-1. Revoke any previous master token
-2. Print a new plaintext token to the terminal (shown only once)
-3. Copy and share it with the Pearl XP team
+Resetting **revokes the previous token instantly** — update all senders at the same time.
 
-**Usage:**
+**If you get `401 {"message": "Unauthenticated."}`**, check in this order:
 
-Include the token in every request:
+1. `Authorization` header missing or not in `Bearer <token>` form (no `X-API-Key`, no query param).
+2. Token is old/revoked (a reset was done after you copied it) — ask for the current one.
+3. You used a normal login token (`POST /login`) older than 5 days — those expire; the master token does not.
+4. A proxy stripped the header — confirm the header reaches the server.
 
-```
-Authorization: Bearer 4|YK1uY2J3MU4ch5AmFgGPk5eF9Qc96pCAlbtNg535153ca7ec
-```
-
----
-
-### Submit Product Updates
-
-Update product MRP, price, and stock by matching barcode.
+### 2. Submit product updates
 
 **Endpoint:** `POST /api/pearl-xp/product-updates`
 
-**Headers:**
-- `Authorization: Bearer <master-token>`
-- `Content-Type: application/json`
+**Base URL:** `https://mstore.primeads.ai/api`
 
-**Body (single item):**
-```json
-{
-  "barcode": "8901234567890",
-  "mrp": 120.00,
-  "price": 99.00,
-  "stock": 45
-}
+**cURL example:**
+
+```bash
+curl -X POST https://mstore.primeads.ai/api/pearl-xp/product-updates \
+  -H "Authorization: Bearer <master-token>" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"items": [{"barcode": "8901234567890", "mrp": 120, "price": 99, "stock": 45}]}'
 ```
 
-**Body (batch):**
+**Body shapes (all three accepted):**
+
+Single object:
+
+```json
+{ "barcode": "8901234567890", "mrp": 120.00, "price": 99.00, "stock": 45 }
+```
+
+Batch object (preferred for sync jobs):
+
 ```json
 {
   "items": [
     { "barcode": "8901234567890", "mrp": 120.00, "price": 99.00, "stock": 45 },
-    { "barcode": "8901234567891", "mrp": 200.00, "price": 150.00 }
+    { "barcode": "8901234567891", "stock": 10 },
+    { "barcode": "8901234567892", "mrp": 200.00, "price": 150.00 }
   ]
 }
 ```
 
-**Validation rules:**
-- `barcode` — required, must match an existing product
-- At least one of `mrp`, `price`, or `stock` must be provided
-- All values must be numeric and >= 0
+Bare array (also accepted):
 
-**Response:**
+```json
+[{ "barcode": "8901234567890", "stock": 45 }]
+```
+
+**Common payloads and what each does:**
+
+```json
+// Stock only -> applied instantly, nothing to approve, no update_id
+{ "barcode": "8901234567890", "stock": 45 }
+
+// Price only -> staged for review, products table untouched until approved
+{ "barcode": "8901234567890", "mrp": 120.00, "price": 99.00 }
+
+// Both -> stock applied instantly AND prices staged for review
+{ "barcode": "8901234567890", "mrp": 120.00, "price": 99.00, "stock": 45 }
+```
+
+**Validation rules:**
+
+| Field | Rule |
+| :--- | :--- |
+| `barcode` | Required string. Must match an existing `products.barcode`. |
+| `mrp` | Optional number, `>= 0`. Becomes staged `new_mrp`. |
+| `price` | Optional number, `>= 0`. Becomes staged `new_price`. |
+| `stock` | Optional integer, `>= 0`. Applied directly to `quantity`. |
+| Overall | At least one of `mrp`, `price`, `stock` is required per item. |
+
+### 3. Reading the response
+
+**This endpoint always returns HTTP 200 when your token is valid — check the `success` boolean, not the status code.** (`401` means auth failed; `200` with `"success": false` means the request was received but an item failed.)
+
+All-success batch:
+
 ```json
 {
   "success": true,
@@ -180,31 +231,58 @@ Update product MRP, price, and stock by matching barcode.
   "failed": 0,
   "results": [
     { "barcode": "8901234567890", "success": true, "stock_applied": true, "update_id": 1, "status": "pending" },
-    { "barcode": "8901234567891", "success": true, "stock_applied": false, "update_id": 2, "status": "pending" }
+    { "barcode": "8901234567891", "success": true, "stock_applied": true }
   ]
 }
 ```
 
-- `success` at the top level = all items succeeded (`true`/`false`)
-- Each item returns its own `success` flag (`true`/`false`) and `error` message if failed
-- `stock_applied: true` means stock was written directly to `products.quantity`
-- `update_id` is present only when MRP/price was staged for admin review
-- Stock-only items return `{ "success": true, "stock_applied": true }` with no `update_id`
-- HTTP 200 is returned either way — check the `success` boolean
+Partial failure (one bad barcode — the others still applied):
 
-**What happens:**
-1. `stock` is applied DIRECTLY to `products.quantity` (plus `stock_status`) immediately — no approval needed
-2. `mrp` → staged as `new_mrp` and `price` → staged as `new_price` in `pearl_xp_product_updates` with status `pending`
-3. An admin reviews at `GET /api/pearl-xp/product-updates` and approves (`POST .../{id}/approve`) — only then do MRP/price move to `products.price` / `products.sale_price`
-4. The staging row is kept as an audit trail
+```json
+{
+  "success": false,
+  "accepted": 1,
+  "failed": 1,
+  "results": [
+    { "barcode": "8901234567890", "success": true, "stock_applied": true, "update_id": 1, "status": "pending" },
+    { "barcode": "NOPE", "success": false, "error": "No product found with barcode: NOPE" }
+  ]
+}
+```
 
----
+**Response fields:**
 
-### Error Handling
+| Field | Meaning |
+| :--- | :--- |
+| `success` (top) | `true` only if **every** item succeeded. |
+| `accepted` / `failed` | Counts of per-item outcomes. |
+| `results[].success` | Per-item outcome — act on this in batch jobs. |
+| `results[].error` | Present only when that item failed. Human-readable reason. |
+| `results[].stock_applied` | `true` = `products.quantity` was updated right now. |
+| `results[].update_id` | Present **only** when `mrp`/`price` was staged. Quote this id to the admin team when asking about a price review. |
+| `results[].status` | Always `"pending"` for newly staged prices. |
 
-- If a barcode doesn't match any product, that item gets `success: false` with an error message
-- All errors are logged server-side with the full payload and reason
-- The API always returns HTTP 200 — check the `success` field in the response
+### 4. What happens after you send (end to end)
+
+1. You `POST` items. Stock hits `products.quantity` (+ `stock_status`) in the same request.
+2. `mrp`/`price` land in `pearl_xp_product_updates` as one `pending` row per item (with `new_stock = NULL` so stock is never applied twice). Nothing in `products.price` / `products.sale_price` changes yet.
+3. An admin reviews (`GET /api/pearl-xp/product-updates?status=pending`, details at `GET .../{id}`) and either approves (`POST .../{id}/approve` — prices go live) or rejects (`POST .../{id}/reject` — prices discarded, stock stays as you set it).
+4. The staging row is kept as an audit trail (`approved` / `rejected`).
+
+Field mapping for reviewers: `mrp` → `products.price`, `price` → `products.sale_price`, `stock` → `products.quantity`.
+
+### 5. Troubleshooting
+
+| Symptom | Cause | Fix |
+| :--- | :--- | :--- |
+| `401 {"message":"Unauthenticated."}` | Missing/invalid/revoked token | See section 1 checklist. |
+| `200` with `"error": "No product found with barcode: X"` | Barcode doesn't exist in `products` | Create the product first or fix the barcode. Matching is exact (products only, not variations). |
+| `200` with `"error": "Failed to store update."` | Server-side write failed (seen once when the `pearl_xp_product_updates` table didn't exist: `1146 Table ... doesn't exist`) | Server admin: `php artisan migrate --force`, then check `storage/logs/laravel.log` (`Pearl XP update failed to store` → `reason`). Retry with a fresh request. |
+| `200` with validation message (`At least one of mrp, price or stock...`, `must be...`) | Payload shape wrong | Send `{"items": [...]}` or a single object containing `barcode` plus at least one value field. |
+| Stock still shows "awaiting approval" | You are looking at a row created before the direct-stock change, or the server hasn't pulled the fix | Rows created earlier legitimately still carry `new_stock`. Only **new** rows have `new_stock = NULL`. Server: confirm `grep -n "stock_applied" app/Http/Controllers/PearlXpController.php` hits, then retest fresh. |
+| Prices not live after your POST | Expected — they wait for approval | Ask an admin to approve the `update_id`, or confirm via `GET /api/pearl-xp/product-updates?barcode=<code>`. |
+
+**When asking for help, always share:** the exact JSON you sent, the full JSON response (including `update_id`s), and the barcode. Never share the master token itself — it must be rotated if exposed.
 
 ---
 
