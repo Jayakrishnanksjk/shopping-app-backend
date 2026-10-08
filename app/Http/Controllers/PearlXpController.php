@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Exception;
+use App\Enums\StockStatus;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -17,7 +18,7 @@ class PearlXpController extends Controller
      *      operationId="submitPearlXpProductUpdates",
      *      tags={"Pearl XP"},
      *      summary="Submit product MRP / price / stock updates by barcode",
-     *      description="Master-token protected intake endpoint. Updates are stored for admin approval and do NOT change products immediately.",
+     *      description="Master-token protected intake endpoint. Stock is applied directly to products immediately; MRP/price are staged for admin approval and do NOT change products until approved. Always returns HTTP 200 — check the success boolean.",
      *      security={{"bearerAuth":{}}},
      *      @OA\RequestBody(required=true, @OA\JsonContent(
      *          @OA\Property(property="items", type="array",
@@ -104,7 +105,12 @@ class PearlXpController extends Controller
     }
 
     /**
-     * Validate + stage a single update item.
+     * Validate + apply a single update item.
+     *
+     * Behaviour contract:
+     *   - stock -> applied DIRECTLY to products.quantity (+ stock_status)
+     *   - mrp/price -> staged in pearl_xp_product_updates (pending admin approval)
+     *   - response always contains per-item success=true/false
      *
      * @param  array<string, mixed>  $item
      * @return array<string, mixed>
@@ -157,27 +163,65 @@ class PearlXpController extends Controller
             return ['barcode' => $barcode, 'success' => false, 'error' => $message];
         }
 
-        try {
-            $update = PearlXpProductUpdate::create([
-                'barcode'    => $barcode,
-                'product_id' => $product->id,
-                // Snapshot the live values so reviewers can compare.
-                'old_mrp'    => $product->price,
-                'old_price'  => $product->sale_price,
-                'old_stock'  => $product->quantity,
-                'new_mrp'    => array_key_exists('mrp', $item) ? $item['mrp'] : null,
-                'new_price'  => array_key_exists('price', $item) ? $item['price'] : null,
-                'new_stock'  => array_key_exists('stock', $item) ? $item['stock'] : null,
-                'status'     => PearlXpProductUpdate::STATUS_PENDING,
-                'payload'    => $item,
-            ]);
+        $hasPriceChange = array_key_exists('mrp', $item) && ! is_null($item['mrp'])
+            || array_key_exists('price', $item) && ! is_null($item['price']);
+        $hasStockChange = array_key_exists('stock', $item) && ! is_null($item['stock']);
 
-            return [
-                'barcode'   => $barcode,
-                'success'   => true,
-                'update_id' => $update->id,
-                'status'    => PearlXpProductUpdate::STATUS_PENDING,
+        try {
+            // Snapshot the live values so reviewers can compare.
+            $oldMrp   = $product->price;
+            $oldPrice = $product->sale_price;
+            $oldStock = $product->quantity;
+
+            // 1. Stock goes DIRECTLY to products — no admin approval needed.
+            $stockApplied = false;
+            if ($hasStockChange) {
+                $product->quantity = (int) $item['stock'];
+                $product->stock_status = ((int) $item['stock'] > 0)
+                    ? StockStatus::IN_STOCK
+                    : StockStatus::OUT_OF_STOCK;
+                $product->save();
+                $stockApplied = true;
+
+                Log::info('Pearl XP stock applied directly', [
+                    'barcode'    => $barcode,
+                    'product_id' => $product->id,
+                    'old_stock'  => $oldStock,
+                    'new_stock'  => (int) $item['stock'],
+                ]);
+            }
+
+            // 2. MRP/price go to the staging table for admin review.
+            // new_stock is intentionally left NULL here so approve() never
+            // double-applies stock that was already written directly above.
+            $update = null;
+            if ($hasPriceChange) {
+                $update = PearlXpProductUpdate::create([
+                    'barcode'    => $barcode,
+                    'product_id' => $product->id,
+                    'old_mrp'    => $oldMrp,
+                    'old_price'  => $oldPrice,
+                    'old_stock'  => $oldStock,
+                    'new_mrp'    => array_key_exists('mrp', $item) ? $item['mrp'] : null,
+                    'new_price'  => array_key_exists('price', $item) ? $item['price'] : null,
+                    'new_stock'  => null,
+                    'status'     => PearlXpProductUpdate::STATUS_PENDING,
+                    'payload'    => $item,
+                ]);
+            }
+
+            $result = [
+                'barcode'       => $barcode,
+                'success'       => true,
+                'stock_applied' => $stockApplied,
             ];
+
+            if ($update) {
+                $result['update_id'] = $update->id;
+                $result['status'] = PearlXpProductUpdate::STATUS_PENDING;
+            }
+
+            return $result;
 
         } catch (Exception $e) {
             Log::error('Pearl XP update failed to store', [

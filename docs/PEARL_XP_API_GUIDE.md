@@ -179,20 +179,24 @@ Update product MRP, price, and stock by matching barcode.
   "accepted": 2,
   "failed": 0,
   "results": [
-    { "barcode": "8901234567890", "success": true, "update_id": 1, "status": "pending" },
-    { "barcode": "8901234567891", "success": true, "update_id": 2, "status": "pending" }
+    { "barcode": "8901234567890", "success": true, "stock_applied": true, "update_id": 1, "status": "pending" },
+    { "barcode": "8901234567891", "success": true, "stock_applied": false, "update_id": 2, "status": "pending" }
   ]
 }
 ```
 
-- `success` at the top level = all items succeeded
-- Each item returns its own `success` flag and `error` message if failed
+- `success` at the top level = all items succeeded (`true`/`false`)
+- Each item returns its own `success` flag (`true`/`false`) and `error` message if failed
+- `stock_applied: true` means stock was written directly to `products.quantity`
+- `update_id` is present only when MRP/price was staged for admin review
+- Stock-only items return `{ "success": true, "stock_applied": true }` with no `update_id`
 - HTTP 200 is returned either way — check the `success` boolean
 
 **What happens:**
-1. Updates are stored in a staging table with status `pending`
-2. An admin must approve them before they apply to the real products table
-3. The staging row is kept as an audit trail
+1. `stock` is applied DIRECTLY to `products.quantity` (plus `stock_status`) immediately — no approval needed
+2. `mrp` → staged as `new_mrp` and `price` → staged as `new_price` in `pearl_xp_product_updates` with status `pending`
+3. An admin reviews at `GET /api/pearl-xp/product-updates` and approves (`POST .../{id}/approve`) — only then do MRP/price move to `products.price` / `products.sale_price`
+4. The staging row is kept as an audit trail
 
 ---
 
