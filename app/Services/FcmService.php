@@ -107,8 +107,10 @@ class FcmService
     }
 
     /**
-     * Multicast to stored device tokens in chunks of 500.
-     * Invalid (unregistered) tokens are deactivated automatically.
+     * Deliver to stored device tokens with one FCM send per token.
+     * (FCM's /batch multicast endpoint is unreliable — individual sends use the
+     * same proven path as topic delivery.) Invalid tokens are deactivated.
+     * Note: at large scale move sending to a queue worker (see SendPushBroadcastJob).
      */
     public function sendToTokens(array $tokens, string $title, string $body, ?string $imageUrl = null, array $data = []): array
     {
@@ -123,25 +125,37 @@ class FcmService
         }
         $success = 0;
         $failure = 0;
-        foreach (array_chunk($tokens, 500) as $chunk) {
+        $firstError = null;
+        foreach ($tokens as $token) {
             try {
-                $message = $this->buildMessage($title, $body, $imageUrl, $data);
-                $report = $this->messaging()->sendMulticast($message, $chunk);
-                $success += $report->successes()->count();
-                $failure += $report->failures()->count();
-                // Deactivate dead tokens so future sends stay cheap.
-                foreach ($report->failures()->getItems() as $failed) {
-                    $reason = strtolower($failed->error()?->getMessage() ?? '');
-                    if (str_contains($reason, 'not-registered') || str_contains($reason, 'unregistered') || str_contains($reason, 'invalid-registration')) {
-                        DeviceToken::where('token', $failed->target()->value())->update(['is_active' => false]);
-                    }
-                }
+                $message = $this->buildMessage($title, $body, $imageUrl, $data)->withChangedTarget('token', $token);
+                $this->messaging()->send($message);
+                $success++;
             } catch (\Throwable $e) {
-                Log::error('FCM multicast failed: ' . $e->getMessage());
-                $failure += count($chunk);
+                $failure++;
+                $firstError ??= substr($e->getMessage(), 0, 200);
+                if ($this->isDeadToken($e)) {
+                    DeviceToken::where('token', $token)->update(['is_active' => false]);
+                } else {
+                    Log::warning('FCM token send failed: ' . $e->getMessage());
+                }
             }
         }
-        return ['success' => $success, 'failure' => $failure, 'mode' => 'fcm'];
+        return ['success' => $success, 'failure' => $failure, 'mode' => 'fcm', 'first_error' => $firstError];
+    }
+
+    protected function isDeadToken(\Throwable $e): bool
+    {
+        if ($e instanceof \Kreait\Firebase\Exception\Messaging\NotFound) {
+            return true;
+        }
+        $reason = strtolower($e->getMessage());
+        foreach (['not-registered', 'unregistered', 'invalid-registration', 'invalid-argument', 'requested entity was not found'] as $needle) {
+            if (str_contains($reason, $needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected function stringifyData(array $data): array
