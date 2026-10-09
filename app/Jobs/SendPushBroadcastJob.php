@@ -51,7 +51,7 @@ class SendPushBroadcastJob implements ShouldQueue
         // 2) Direct token multicast as backup (users who missed topic subscription).
         $tokenResult = ['success' => 0, 'failure' => 0, 'mode' => $topicResult['mode'] ?? 'log'];
         if ($fcm->isConfigured()) {
-            DeviceToken::where('is_active', true)->select('token')->chunkById(1000, function ($rows) use ($fcm, $broadcast, $imageUrl, $data, &$tokenResult) {
+            DeviceToken::where('is_active', true)->select('id', 'token')->chunkById(1000, function ($rows) use ($fcm, $broadcast, $imageUrl, $data, &$tokenResult) {
                 $r = $fcm->sendToTokens($rows->pluck('token')->all(), $broadcast->title, $broadcast->body, $imageUrl, $data);
                 $tokenResult['success'] += $r['success'];
                 $tokenResult['failure'] += $r['failure'];
