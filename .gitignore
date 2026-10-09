@@ -72,3 +72,5 @@ Thumbs.db
 # Private keys - never commit
 *.pem
 *.key
+storage/firebase-service-account.json
+*service-account*.json
