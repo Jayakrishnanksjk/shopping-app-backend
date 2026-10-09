@@ -30,8 +30,21 @@ class FcmService
             $factory = (new \Kreait\Firebase\Factory);
             $credentials = config('services.firebase.credentials');
             $projectId = config('services.firebase.project_id');
-            if ($credentials && file_exists($credentials)) {
+            // Resolve relative paths against the app root so CWD can never matter
+            // (web server, cron, queue workers and Octane all boot with different CWDs).
+            if (is_string($credentials) && $credentials !== '' && !is_file($credentials)) {
+                $candidate = base_path($credentials);
+                if (is_file($candidate)) {
+                    $credentials = $candidate;
+                }
+            }
+            if ($credentials && is_file($credentials)) {
                 $factory = $factory->withServiceAccount($credentials);
+            } elseif ($credentials) {
+                $this->bootFailed = true;
+                $this->bootError = 'Firebase key file not found: ' . config('services.firebase.credentials');
+                Log::warning('FCM key missing: ' . $this->bootError);
+                return null;
             }
             if ($projectId) {
                 $factory = $factory->withProjectId($projectId);
