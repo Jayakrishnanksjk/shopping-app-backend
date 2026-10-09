@@ -62,6 +62,7 @@ class AuthServiceProvider extends ServiceProvider
         ShippingRule::class => ShippingRulePolicy::class,
         AttributeValue::class => AttributeValuePolicy::class,
         \App\Models\OfferBanner::class => \App\Policies\OfferBannerPolicy::class,
+        \App\Models\PushBroadcast::class => \App\Policies\PushBroadcastPolicy::class,
     ];
 
     /**

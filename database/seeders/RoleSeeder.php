@@ -332,6 +332,17 @@ class RoleSeeder extends Seeder
                     RoleEnum::ADMIN => ['index', 'create', 'edit', 'destroy'],
                 ]
             ],
+            'push_broadcasts' => [
+                'actions' => [
+                    'index'   => 'push_broadcast.index',
+                    'create'  => 'push_broadcast.create',
+                    'edit'    => 'push_broadcast.edit',
+                    'destroy' => 'push_broadcast.destroy',
+                ],
+                'roles' => [
+                    RoleEnum::ADMIN => ['index', 'create', 'edit', 'destroy'],
+                ]
+            ],
         ];
 
 

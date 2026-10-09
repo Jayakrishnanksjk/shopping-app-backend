@@ -190,6 +190,10 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   Route::put('notifications/markAsRead', 'App\Http\Controllers\NotificationController@markAsRead');
   Route::delete('notifications/{id}', 'App\Http\Controllers\NotificationController@destroy');
 
+  // Push-notification device tokens (React Native app registers its FCM token here)
+  Route::post('device-tokens', 'App\Http\Controllers\DeviceTokenController@store');
+  Route::delete('device-tokens', 'App\Http\Controllers\DeviceTokenController@destroy');
+
   // ***********  Frontend   ***********
   Route::apiResource('cart', 'App\Http\Controllers\CartController');
   Route::apiResource('refund', 'App\Http\Controllers\RefundController');
@@ -370,6 +374,13 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   ]);
   Route::post('offer-banner/deleteAll', 'App\Http\Controllers\OfferBannerController@deleteAll')->middleware('can:offer_banner.destroy');
   Route::put('offer-banner/{id}/{status}', 'App\Http\Controllers\OfferBannerController@status')->middleware('can:offer_banner.edit');
+
+  // Push Broadcasts (admin "Notifications" tab: title + subtitle + image + schedule)
+  Route::apiResource('push-broadcast', 'App\Http\Controllers\PushBroadcastController');
+  Route::post('push-broadcast/deleteAll', 'App\Http\Controllers\PushBroadcastController@deleteAll');
+  Route::post('push-broadcast/{push_broadcast}/send-now', 'App\Http\Controllers\PushBroadcastController@sendNow');
+  Route::post('push-broadcast/{push_broadcast}/pause', 'App\Http\Controllers\PushBroadcastController@pause');
+  Route::post('push-broadcast/{push_broadcast}/resume', 'App\Http\Controllers\PushBroadcastController@resume');
 
   // Shipping
   Route::apiResource('shipping', 'App\Http\Controllers\ShippingController');

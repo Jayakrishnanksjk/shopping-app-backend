@@ -18,6 +18,7 @@ class Kernel extends ConsoleKernel
     {
         $schedule->call('App\Http\Controllers\CommissionHistoryController@store');
         $schedule->command('products:sync-badges --limit=10 --trending-window=7')->hourly();
+        $schedule->command('broadcasts:dispatch-due')->everyMinute();
     }
 
     /**
