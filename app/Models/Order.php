@@ -199,4 +199,21 @@ class Order extends Model
     {
         return $this->hasMany(Transaction::class, 'order_id');
     }
+
+    /**
+     * @return HasOne
+     */
+    public function cancellation(): HasOne
+    {
+        return $this->hasOne(Cancellation::class, 'order_id');
+    }
+
+    /**
+     * @return HasOne
+     */
+    public function refund(): HasOne
+    {
+        return $this->hasOne(Refund::class, 'order_id');
+    }
+
 }

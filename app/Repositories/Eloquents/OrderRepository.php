@@ -5,6 +5,8 @@ namespace App\Repositories\Eloquents;
 use Exception;
 use Carbon\Carbon;
 use App\Models\Order;
+use App\Models\Cancellation;
+use App\Models\Refund;
 use App\Payments\Cod;
 use App\Payments\Mollie;
 use App\Payments\PayPal;
@@ -83,15 +85,91 @@ class OrderRepository extends BaseRepository
     public function show($order_number)
     {
         try {
-
             $order = Helpers::getOrderByOrderNumber($order_number);
             if ($order) {
-                return $this->verifyPayment($order);
+                $order = $this->verifyPayment($order);
+                
+                // Add cancellation and refund details
+                $this->enhanceOrderWithCancellationRefund($order);
+                
+                return $order;
             }
 
         } catch (Exception $e) {
 
             throw new ExceptionHandler($e->getMessage(), $e->getCode());
+        }
+    }
+
+    protected function enhanceOrderWithCancellationRefund($order)
+    {
+        // Cancellation data
+        $cancellation = $order->cancellation;
+
+        // Refund data
+        $refund = $order->refund;
+
+        // Add cancellable flag: true if order is not cancelled and not packed/delivered
+        $isCancelled = $order->status === OrderEnum::CANCELLED 
+            || ($order->order_status && $order->order_status->name === OrderEnum::CANCELLED);
+        $order->cancellable = !$isCancelled && ($order->order_status?->name !== OrderEnum::PACKED);
+
+        // Payment defaults
+        $order->payment_method = $order->payment_method ?? 'cod';
+        $order->payment_status = $order->payment_status ?? PaymentStatus::PENDING;
+
+        // Attach cancel_status to product pivots without losing product model data/thumbnails
+        if ($order->products) {
+            $cancelStatusMap = [];
+            if ($cancellation && $cancellation->items) {
+                foreach ((array)$cancellation->items as $item) {
+                    if (isset($item['product_id'])) {
+                        $cancelStatusMap[$item['product_id']] = $cancellation->status;
+                    }
+                }
+            }
+
+            foreach ($order->products as $product) {
+                if ($product->pivot) {
+                    $product->pivot->cancel_status = $cancelStatusMap[$product->id] ?? ($isCancelled ? 'cancelled' : 'none');
+                }
+            }
+        }
+
+        // Add cancellation object
+        if ($cancellation) {
+            $order->cancellation = (object)[
+                'status' => $cancellation->status,
+                'scope' => $cancellation->scope,
+                'reason' => $cancellation->reason,
+                'created_at' => $cancellation->created_at ? $cancellation->created_at->toISOString() : null,
+            ];
+        } else {
+            $order->cancellation = (object)[
+                'status' => $isCancelled ? 'cancelled' : 'none',
+                'scope' => 'full',
+                'reason' => '',
+                'created_at' => null,
+            ];
+        }
+
+        // Add refund object
+        if ($refund) {
+            $order->refund = (object)[
+                'required' => true,
+                'status' => $refund->status,
+                'amount' => (float)$refund->amount,
+                'updated_at' => $refund->updated_at ? $refund->updated_at->toISOString() : null,
+                'method' => $refund->payment_type ?? 'original_source',
+            ];
+        } else {
+            $order->refund = (object)[
+                'required' => false,
+                'status' => 'none',
+                'amount' => 0,
+                'updated_at' => null,
+                'method' => 'none',
+            ];
         }
     }
 
@@ -377,6 +455,99 @@ class OrderRepository extends BaseRepository
 
         }  catch (Exception $e) {
 
+            throw new ExceptionHandler($e->getMessage(), $e->getCode());
+        }
+    }
+
+    public function cancelOrder($order_number, Request $request)
+    {
+        $idempotencyKey = $request->header('Idempotency-Key');
+        $order = $this->verifyOrderNumber($order_number);
+
+        // Check if order is already cancelled
+        if ($order->status === OrderEnum::CANCELLED || ($order->order_status && $order->order_status->name === OrderEnum::CANCELLED)) {
+            return response()->json([
+                'code' => 'ALREADY_CANCELLED',
+                'message' => 'Order is already cancelled',
+            ], 422);
+        }
+
+        // Check if order is already packed
+        if ($order->order_status && $order->order_status->name === OrderEnum::PACKED) {
+            return response()->json([
+                'code' => 'ALREADY_PACKED',
+                'message' => 'Order cannot be cancelled after packing',
+            ], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $items = $request->input('items', []);
+            $scope = $request->input('scope', 'full');
+            $reason = $request->input('reason', 'Customer requested cancellation');
+
+            $cancellation = Cancellation::create([
+                'order_id' => $order->id,
+                'scope' => $scope,
+                'items' => $scope === 'partial' ? $items : null,
+                'reason' => $reason,
+                'status' => 'cancelled',
+            ]);
+
+            // Update order status to cancelled
+            $order->status = OrderEnum::CANCELLED;
+            $cancelledStatus = OrderStatus::where('name', OrderEnum::CANCELLED)->first();
+            if ($cancelledStatus) {
+                $order->order_status_id = $cancelledStatus->id;
+            }
+            $order->save();
+
+            // Determine refund requirements
+            // COD: never needs refund, refundAmount = 0
+            // Online: only if payment was completed
+            $isCod = strtolower($order->payment_method ?? '') === 'cod';
+            $isPaid = in_array(strtolower($order->payment_status ?? ''), ['completed', 'success', 'paid']);
+
+            $refundRequired = false;
+            $refundAmount = 0;
+
+            if (!$isCod && $isPaid) {
+                $refundRequired = true;
+                if ($scope === 'partial') {
+                    $refundAmount = array_sum(array_column($items, 'subtotal'));
+                } else {
+                    $refundAmount = (float)$order->total;
+                }
+
+                if ($refundAmount > 0) {
+                    Refund::updateOrCreate(
+                        ['order_id' => $order->id],
+                        [
+                            'reason' => $reason,
+                            'amount' => $refundAmount,
+                            'status' => 'pending',
+                            'store_id' => $order->store_id,
+                            'consumer_id' => $order->consumer_id,
+                            'payment_type' => 'bank',
+                        ]
+                    );
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'cancellation_id' => $cancellation->id,
+                'status' => 'cancelled',
+                'scope' => $scope,
+                'refund_required' => $refundRequired,
+                'refund_amount' => $refundAmount,
+                'cancellable' => false,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollback();
             throw new ExceptionHandler($e->getMessage(), $e->getCode());
         }
     }

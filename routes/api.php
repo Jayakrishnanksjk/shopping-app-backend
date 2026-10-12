@@ -322,10 +322,11 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   Route::apiResource('withdrawRequest', 'App\Http\Controllers\WithdrawRequestController');
 
   // Orders
+  Route::post('order/cancel', 'App\Http\Controllers\CancelOrderController@cancel');
   Route::apiResource('order', 'App\Http\Controllers\OrderController');
   Route::post('checkout','App\Http\Controllers\CheckoutController@verifyCheckout');
   Route::post('rePayment', 'App\Http\Controllers\OrderController@rePayment');
-  Route::get('trackOrder/{order_number}', 'App\Http\Controllers\OrderController@trackOrder');
+    Route::get('trackOrder/{order_number}', 'App\Http\Controllers\OrderController@trackOrder');
   Route::get('verifyPayment/{order_number}', 'App\Http\Controllers\OrderController@verifyPayment');
 
   // Order Status
