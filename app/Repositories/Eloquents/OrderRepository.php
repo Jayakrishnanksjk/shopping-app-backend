@@ -111,7 +111,8 @@ class OrderRepository extends BaseRepository
         $refund = $order->refund;
 
         // Add cancellable flag: true if order is not cancelled and not packed/delivered
-        $isCancelled = $order->status === OrderEnum::CANCELLED 
+        $cancelledStatusId = Helpers::getOrderStatusIdByName(OrderEnum::CANCELLED);
+        $isCancelled = ($order->order_status_id == $cancelledStatusId) 
             || ($order->order_status && $order->order_status->name === OrderEnum::CANCELLED);
         $order->cancellable = !$isCancelled && ($order->order_status?->name !== OrderEnum::PACKED);
 
@@ -460,13 +461,15 @@ class OrderRepository extends BaseRepository
         }
     }
 
-    public function cancelOrder($order_number, Request $request)
+    public function cancelOrder($order_number, $request)
     {
         $idempotencyKey = $request->header('Idempotency-Key');
         $order = $this->verifyOrderNumber($order_number);
 
+        $cancelledStatusId = Helpers::getOrderStatusIdByName(OrderEnum::CANCELLED);
+
         // Check if order is already cancelled
-        if ($order->status === OrderEnum::CANCELLED || ($order->order_status && $order->order_status->name === OrderEnum::CANCELLED)) {
+        if ($order->order_status_id == $cancelledStatusId || ($order->order_status && $order->order_status->name === OrderEnum::CANCELLED)) {
             return response()->json([
                 'code' => 'ALREADY_CANCELLED',
                 'message' => 'Order is already cancelled',
@@ -496,17 +499,21 @@ class OrderRepository extends BaseRepository
                 'status' => 'cancelled',
             ]);
 
-            // Update order status to cancelled
-            $order->status = OrderEnum::CANCELLED;
-            $cancelledStatus = OrderStatus::where('name', OrderEnum::CANCELLED)->first();
-            if ($cancelledStatus) {
-                $order->order_status_id = $cancelledStatus->id;
+            // Update order_status_id to cancelled (do not touch status column which is an integer)
+            if ($cancelledStatusId) {
+                $order->order_status_id = $cancelledStatusId;
             }
             $order->save();
 
-            // Determine refund requirements
-            // COD: never needs refund, refundAmount = 0
-            // Online: only if payment was completed
+            // Restock inventory for cancelled order
+            Helpers::restockProductStock($order);
+
+            // Trigger status change event
+            event(new UpdateOrderStatusEvent($order));
+
+            // Determine refund requirements:
+            // For COD: no refund is required, refundAmount = 0
+            // For Online: only if payment was completed
             $isCod = strtolower($order->payment_method ?? '') === 'cod';
             $isPaid = in_array(strtolower($order->payment_status ?? ''), ['completed', 'success', 'paid']);
 
