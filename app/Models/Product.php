@@ -73,7 +73,9 @@ class Product extends Model implements HasMedia
         'barcode',
         'cost',
         'default_variation_id',
-        'created_by_id'
+        'created_by_id',
+        'maximum_purchase_limit',
+        'minimum_purchase_limit'
     ];
 
     protected $with = [
@@ -132,6 +134,8 @@ class Product extends Model implements HasMedia
         'is_changeable' => 'integer',
         'is_sale_enable' => 'integer',
         'is_random_related_products' => 'integer',
+        'maximum_purchase_limit' => 'integer',
+        'minimum_purchase_limit' => 'integer',
         'status' => 'integer',
         'is_approved' => 'integer',
         'reviews_count' => 'integer',

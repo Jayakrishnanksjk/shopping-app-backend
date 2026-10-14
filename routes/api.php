@@ -200,6 +200,7 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   Route::apiResource('compare', 'App\Http\Controllers\CompareController');
   Route::apiResource('wishlist', 'App\Http\Controllers\WishlistController');
 
+  Route::put('order/{order_number}/refund-verify', 'App\Http\Controllers\OrderController@verifyRefund');
   Route::post('rePayment', 'App\Http\Controllers\OrderController@rePayment');
   Route::get('trackOrder/{order_number}', 'App\Http\Controllers\OrderController@trackOrder');
   Route::get('verifyPayment/{order_number}', 'App\Http\Controllers\OrderController@verifyPayment');
@@ -325,6 +326,7 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   Route::post('order/cancel', 'App\Http\Controllers\CancelOrderController@cancel');
   Route::apiResource('order', 'App\Http\Controllers\OrderController');
   Route::post('checkout','App\Http\Controllers\CheckoutController@verifyCheckout');
+  Route::put('order/{order_number}/refund-verify', 'App\Http\Controllers\OrderController@verifyRefund');
   Route::post('rePayment', 'App\Http\Controllers\OrderController@rePayment');
     Route::get('trackOrder/{order_number}', 'App\Http\Controllers\OrderController@trackOrder');
   Route::get('verifyPayment/{order_number}', 'App\Http\Controllers\OrderController@verifyPayment');

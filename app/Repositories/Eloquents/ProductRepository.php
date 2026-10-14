@@ -162,6 +162,8 @@ class ProductRepository extends BaseRepository
                 'store_id' => $request->store_id,
                 'barcode' => $request->barcode,
                 'hsn_code' => $request->hsn_code,
+                'maximum_purchase_limit' => $request->maximum_purchase_limit,
+                'minimum_purchase_limit' => $request->minimum_purchase_limit,
             ]);
 
             $this->relationProductModels($request, $product);

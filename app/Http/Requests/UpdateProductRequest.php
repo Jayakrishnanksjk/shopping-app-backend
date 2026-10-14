@@ -72,6 +72,8 @@ class UpdateProductRequest extends FormRequest
             'external_url' => ['required_if:is_external,==,1', 'nullable'],
             'external_button_text' => ['required_if:type,==,external', 'nullable'],
             'show_stock_quantity' => ['min:0', 'max:1'],
+            'maximum_purchase_limit' => ['nullable', 'integer', 'min:0'],
+            'minimum_purchase_limit' => ['nullable', 'integer', 'min:0'],
             'sale_starts_at' => ['nullable', 'date'],
             'sale_expired_at' => ['nullable','date', 'after:sale_starts_at'],
             'product_meta_image_id' =>['nullable','exists:attachments,id,deleted_at,NULL'],

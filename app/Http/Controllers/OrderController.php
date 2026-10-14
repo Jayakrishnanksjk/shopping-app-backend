@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Exception;
 use App\Models\Order;
+use App\Models\Refund;
 use App\Enums\RoleEnum;
 use App\Helpers\Helpers;
 use Illuminate\Http\Request;
@@ -73,6 +74,56 @@ class OrderController extends Controller
     public function verifyPayment(Request $request)
     {
         return $this->repository->verifyPayment($request);
+    }
+
+    public function verifyRefund(Request $request, $order_number)
+    {
+        try {
+            $order = $this->repository->verifyOrderNumber($order_number);
+            
+            // Check admin authorization
+            $roleName = Helpers::getCurrentRoleName();
+            if ($roleName !== RoleEnum::ADMIN) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+            
+            // Get refund ID from request
+            $refundId = $request->input('refund_id');
+            if (!$refundId) {
+                return response()->json(['message' => 'Refund ID required'], 422);
+            }
+            
+            $refund = Refund::find($refundId);
+            if (!$refund) {
+                return response()->json(['message' => 'Refund not found'], 404);
+            }
+            
+            // Toggle/refund status - admin checks the box to mark as done
+            // The frontend sends: { status: 'done' }
+            $newStatus = $request->input('status', 'done');
+            $validStatuses = ['pending', 'processing', 'done'];
+            
+            if (!in_array($newStatus, $validStatuses)) {
+                return response()->json(['message' => 'Invalid status'], 422);
+            }
+            
+            $refund->status = $newStatus;
+            $refund->updated_at = now();
+            $refund->save();
+            
+            return response()->json([
+                'message' => 'Refund status updated',
+                'refund' => [
+                    'id' => $refund->id,
+                    'status' => $refund->status,
+                    'amount' => $refund->amount,
+                    'updated_at' => $refund->updated_at,
+                ]
+            ]);
+            
+        } catch (Exception $e) {
+            throw new ExceptionHandler($e->getMessage(), $e->getCode());
+        }
     }
 
     public function rePayment(Request $request)

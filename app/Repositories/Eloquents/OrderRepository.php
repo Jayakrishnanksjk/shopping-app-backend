@@ -195,6 +195,8 @@ class OrderRepository extends BaseRepository
             $consumer_id = $this->getConsumerId($request);
             $products = $this->getUniqueProducts($request->products);
             $request->merge(['products' => $products]);
+            // Validate purchase limits
+            $this->validatePurchaseLimits($products);
             $items = $this->calculate($request);
 
             if ($request->coupon) {
@@ -344,7 +346,36 @@ class OrderRepository extends BaseRepository
         return $walletRatio <= 0 ? 1 : $walletRatio;
     }
 
-    public function update($request, $id)
+    
+    protected function validatePurchaseLimits($products)
+    {
+        try {
+            $settings = Helpers::getSettings();
+            foreach ($products as $product) {
+                $productModel = Product::find($product["product_id"]);
+                if ($productModel) {
+                    $maxLimit = $productModel->maximum_purchase_limit;
+                    $minLimit = $productModel->minimum_purchase_limit;
+                    
+                    // Get the quantity being ordered
+                    $requestedQuantity = $product["quantity"] ?? 1;
+                    
+                    // Check maximum purchase limit
+                    if ($maxLimit !== null && $requestedQuantity > $maxLimit) {
+                        throw new Exception("Product {$productModel->name} has a maximum purchase limit of {$maxLimit} per order.", 422);
+                    }
+                    
+                    // Check minimum purchase limit
+                    if ($minLimit !== null && $requestedQuantity < $minLimit) {
+                        throw new Exception("Product {$productModel->name} has a minimum purchase limit of {$minLimit} per order.", 422);
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            throw new ExceptionHandler($e->getMessage(), $e->getCode());
+        }
+    }
+public function update($request, $id)
     {
         DB::beginTransaction();
         try {

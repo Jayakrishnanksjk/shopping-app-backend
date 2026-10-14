@@ -48,6 +48,8 @@ class CreateProductRequest extends FormRequest
             'discount' => ['nullable','numeric','regex:/^([0-9]{1,2}){1}(\.[0-9]{1,2})?$/'],
             'tax_id' => ['nullable','exists:taxes,id,deleted_at,NULL'],
             'show_stock_quantity' => ['min:0', 'max:1'],
+            'maximum_purchase_limit' => ['nullable', 'integer', 'min:0'],
+            'minimum_purchase_limit' => ['nullable', 'integer', 'min:0'],
             'is_featured' => ['min:0', 'max:1'],
             'size_chart_image_id' => ['nullable','exists:attachments,id,deleted_at,NULL'],
             'secure_checkout' => ['min:0', 'max:1'],
