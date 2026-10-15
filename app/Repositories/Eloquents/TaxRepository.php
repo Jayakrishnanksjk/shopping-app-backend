@@ -48,11 +48,23 @@ class TaxRepository extends BaseRepository
     {
         DB::beginTransaction();
         try {
+            $rate = round(floatval($request->rate), 2);
 
-            $tax =  $this->model->create([
-                'name' => $request->name,
-                'rate' => $request->rate,
-                'status' => $request->status,
+            // Concurrency-safe check: reuse existing tax if equivalent rate already exists
+            $existingTax = $this->model
+                ->whereRaw('ROUND(rate, 2) = ?', [$rate])
+                ->lockForUpdate()
+                ->first();
+
+            if ($existingTax) {
+                DB::commit();
+                return $existingTax;
+            }
+
+            $tax = $this->model->create([
+                'name' => $request->name ?: ($rate . '%'),
+                'rate' => $rate,
+                'status' => $request->status ?? 1,
             ]);
 
             DB::commit();
