@@ -4,6 +4,8 @@ namespace App\Repositories\Eloquents;
 
 use Exception;
 use App\Models\Category;
+use App\Enums\RoleEnum;
+use App\Helpers\Helpers;
 use App\Imports\CategoryImport;
 use App\Exports\CategoriesExport;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +55,11 @@ class CategoryRepository extends BaseRepository
         DB::beginTransaction();
         try {
 
+            $store_id = $request->store_id;
+            if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
+                $store_id = Helpers::getCurrentVendorStoreId() ?? $request->store_id;
+            }
+
             $category =  $this->model->create([
                 'name' => $request->name,
                 'description' => $request->description,
@@ -61,7 +68,8 @@ class CategoryRepository extends BaseRepository
                 'category_image_id' => $request->category_image_id,
                 'category_icon_id'   => $request->category_icon_id,
                 'commission_rate' => $request->commission_rate,
-                'parent_id' => $request->parent_id
+                'parent_id' => $request->parent_id,
+                'store_id' => $store_id,
             ]);
 
             $category->category_image;

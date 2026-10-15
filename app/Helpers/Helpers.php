@@ -45,7 +45,7 @@ class Helpers
   public static function getCurrentRoleName()
   {
     if (self::isUserLogin()) {
-      return Auth::guard('api')->user()?->tokens->first()->role_type;
+      return Auth::guard('api')->user()?->tokens->first()?->role_type ?? Auth::guard('api')->user()?->getRoleNames()->first();
     }
   }
 

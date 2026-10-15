@@ -9,6 +9,8 @@ type Category {
     category_icon_id: Int
     status: Int
     type: String
+    store_id: Int
+    store: Store
     created_at: DateTimeUtc
     updated_at: DateTimeUtc
     category_image: Attachment
@@ -27,6 +29,7 @@ input CreateCategoryInput {
     category_image_id: Int
     category_icon_id: Int
     parent_id: Int
+    store_id: Int
 }
 
 input UpdateCategoryInput {
@@ -40,6 +43,7 @@ input UpdateCategoryInput {
     category_image_id: Int
     category_icon_id: Int
     parent_id: Int
+    store_id: Int
 }
 
 input DeleteCategoryInput {
@@ -89,9 +93,9 @@ extend type Query {
         sort: String
         field: String
         status: Int
+        store_id: Int
         store_slug: String
         paginate: Int
-        store_slug: String
     ): Json
     @paginate(resolver: "App\\GraphQL\\Queries\\CategoryQuery@index" defaultCount:15)
     category(id: Int @eq): Category @find

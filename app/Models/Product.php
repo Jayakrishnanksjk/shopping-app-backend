@@ -155,6 +155,9 @@ class Product extends Model implements HasMedia
         parent::boot();
         static::saving(function ($model) {
             $model->created_by_id = Helpers::getCurrentUserId();
+            if (!$model->store_id && Helpers::isUserLogin() && Helpers::getCurrentRoleName() == \App\Enums\RoleEnum::VENDOR) {
+                $model->store_id = Helpers::getCurrentVendorStoreId();
+            }
         });
     }
 

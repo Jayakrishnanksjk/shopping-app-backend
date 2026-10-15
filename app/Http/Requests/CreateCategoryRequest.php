@@ -34,6 +34,7 @@ class CreateCategoryRequest extends FormRequest
             'category_icon_id' => ['nullable','exists:attachments,id,deleted_at,NULL'],
             'status' => ['required','min:0','max:1'],
             'commission_rate' => ['nullable', 'regex:/^([0-9]{1,2}){1}(\.[0-9]{1,2})?$/'],
+            'store_id' => ['nullable','exists:stores,id,deleted_at,NULL'],
             'type' => ['required','in:post,product']
         ];
     }

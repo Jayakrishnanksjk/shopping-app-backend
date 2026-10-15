@@ -91,6 +91,7 @@ class ProductRepository extends BaseRepository
 
             $quantity = 0;
             $roleName = Helpers::getCurrentRoleName();
+            $store_id = $request->store_id;
 
             if ($roleName != RoleEnum::ADMIN) {
                 $settings = Helpers::getSettings();
@@ -99,6 +100,10 @@ class ProductRepository extends BaseRepository
                 }
 
                 $isAutoApprove = $settings['activation']['product_auto_approve'] ?? true;
+            }
+
+            if ($roleName == RoleEnum::VENDOR) {
+                $store_id = Helpers::getCurrentVendorStoreId() ?? $request->store_id;
             }
 
             if (isset($request['variations']) && !empty($request['variations']) && $request->type == 'classified') {
@@ -159,7 +164,7 @@ class ProductRepository extends BaseRepository
                 'is_approved' => 1,
                 'cost' => $request->cost,
                 'default_variation_id' => $request->default_variation_id,
-                'store_id' => $request->store_id,
+                'store_id' => $store_id,
                 'barcode' => $request->barcode,
                 'hsn_code' => $request->hsn_code,
                 'maximum_purchase_limit' => $request->maximum_purchase_limit,
@@ -222,6 +227,11 @@ class ProductRepository extends BaseRepository
 
 
             $product = $this->model->findOrFail($id);
+            $roleName = Helpers::getCurrentRoleName();
+            if ($roleName == RoleEnum::VENDOR) {
+                $request['store_id'] = Helpers::getCurrentVendorStoreId() ?? $product->store_id;
+            }
+
             if (!isset($request['unit']) || is_null($request['unit'])) {
                 $request['unit'] = $product->unit ?: '1';
             }

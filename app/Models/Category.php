@@ -33,6 +33,7 @@ class Category extends Model implements HasMedia
         'status',
         'type',
         'parent_id',
+        'store_id',
         'commission_rate',
         'created_by_id'
     ];
@@ -50,6 +51,7 @@ class Category extends Model implements HasMedia
     protected $casts = [
         'status' => 'integer',
         'parent_id' => 'integer',
+        'store_id' => 'integer',
         'category_image_id' => 'integer',
         'blogs_count' => 'integer',
         'products_count' => 'integer',
@@ -62,6 +64,9 @@ class Category extends Model implements HasMedia
         parent::boot();
         static::saving(function ($model) {
             $model->created_by_id = Helpers::getCurrentUserId();
+            if (!$model->store_id && Helpers::isUserLogin() && Helpers::getCurrentRoleName() == \App\Enums\RoleEnum::VENDOR) {
+                $model->store_id = Helpers::getCurrentVendorStoreId();
+            }
         });
     }
 
@@ -94,9 +99,17 @@ class Category extends Model implements HasMedia
     /**
      * @return BelongsTo
      */
-    public function parent(): BelongsTo
+     public function parent(): BelongsTo
+     {
+         return $this->belongsTo(Category::class, 'parent_id');
+     }
+
+    /**
+     * @return BelongsTo
+     */
+    public function store(): BelongsTo
     {
-        return $this->belongsTo(Category::class, 'parent_id');
+        return $this->belongsTo(Store::class, 'store_id');
     }
 
     /**

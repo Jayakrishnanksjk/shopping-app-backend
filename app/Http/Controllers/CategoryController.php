@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Exception;
 use App\Models\Category;
+use App\Enums\RoleEnum;
+use App\Helpers\Helpers;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\Builder;
 use App\GraphQL\Exceptions\ExceptionHandler;
@@ -193,6 +195,16 @@ class CategoryController extends Controller
 
     public function filter($categories, $request)
     {
+        if (Helpers::isUserLogin()) {
+            $roleName = Helpers::getCurrentRoleName();
+            if ($roleName == RoleEnum::VENDOR) {
+                $vendorStoreId = Helpers::getCurrentVendorStoreId();
+                if ($vendorStoreId) {
+                    $categories = $categories->where('store_id', $vendorStoreId);
+                }
+            }
+        }
+
         if ($request->type) {
             $categories = $this->repository->whereNull('parent_id')
                 ->where('type', 'like', $request->type)
@@ -212,11 +224,25 @@ class CategoryController extends Controller
             $categories = $categories->where('status', $request->status);
         }
 
+        if ($request->store_id) {
+            $store_id = $request->store_id;
+            $categories = $categories->where(function ($q) use ($store_id) {
+                $q->where('store_id', $store_id)
+                  ->orWhereHas('products', function (Builder $products) use ($store_id) {
+                      $products->where('store_id', $store_id);
+                  });
+            });
+        }
+
         if ($request->store_slug) {
             $store_slug = $request->store_slug;
-            $categories = $categories->whereHas('products', function (Builder $products) use ($store_slug) {
-                $products->whereHas('store', function (Builder $stores) use ($store_slug) {
+            $categories = $categories->where(function ($q) use ($store_slug) {
+                $q->whereHas('store', function (Builder $stores) use ($store_slug) {
                     $stores->where('slug', $store_slug);
+                })->orWhereHas('products', function (Builder $products) use ($store_slug) {
+                    $products->whereHas('store', function (Builder $stores) use ($store_slug) {
+                        $stores->where('slug', $store_slug);
+                    });
                 });
             });
         }

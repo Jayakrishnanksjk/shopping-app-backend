@@ -40,6 +40,7 @@ class UpdateCategoryRequest extends FormRequest
             'commission_rate' => ['nullable', 'regex:/^([0-9]{1,2}){1}(\.[0-9]{1,2})?$/'],
             'category_image_id' => ['nullable','exists:attachments,id'],
             'category_icon_id' => ['nullable','exists:attachments,id'],
+            'store_id' => ['nullable','exists:stores,id,deleted_at,NULL'],
             'type' => ['in:post,product']
         ];
     }
