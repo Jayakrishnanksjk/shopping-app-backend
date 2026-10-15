@@ -74,3 +74,8 @@ Thumbs.db
 *.key
 storage/firebase-service-account.json
 *service-account*.json
+
+# Database backups
+/database/backups/*
+*.sqlite.bak*
+*.sqlite
