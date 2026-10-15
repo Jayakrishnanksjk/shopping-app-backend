@@ -5,6 +5,7 @@ namespace App\Repositories\Eloquents;
 use Exception;
 use Carbon\Carbon;
 use App\Models\Order;
+use App\Models\Product;
 use App\Models\Cancellation;
 use App\Models\Refund;
 use App\Payments\Cod;
