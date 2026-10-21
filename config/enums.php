@@ -71,6 +71,7 @@ return [
             'review_ratings',
             'related_products',
             'cross_sell_products',
+        'badge',
         ]
     ]
 ];
