@@ -182,7 +182,7 @@ class Product extends Model implements HasMedia
 
     public function getIsTrendingAttribute()
     {
-        return $this->is_trending ? 1 : 0;
+        return $this->trending_product()->exists() ? 1 : 0;
     }
 
     public function bestselling_product(): \Illuminate\Database\Eloquent\Relations\HasOne
@@ -192,26 +192,29 @@ class Product extends Model implements HasMedia
 
     public function getBestsellingAttribute()
     {
-        return $this->is_bestselling ? 1 : 0;
+        return $this->bestselling_product()->exists() ? 1 : 0;
     }
 
     public function getBadgeAttribute()
     {
-        if ($this->is_trending && $this->is_bestselling) {
+        $is_trending = (bool) $this->is_trending;
+        $is_bestselling = (bool) $this->bestselling;
+
+        if ($is_trending && $is_bestselling) {
             return (object) [
                 'text' => 'TRENDING / BEST SELLING',
                 'bg_color' => '#FF6B6B',
                 'text_color' => '#FFFFFF'
             ];
         }
-        if ($this->is_trending) {
+        if ($is_trending) {
             return (object) [
                 'text' => 'TRENDING',
                 'bg_color' => '#FF6B6B',
                 'text_color' => '#FFFFFF'
             ];
         }
-        if ($this->is_bestselling) {
+        if ($is_bestselling) {
             return (object) [
                 'text' => 'BEST SELLING',
                 'bg_color' => '#4DA2FF',

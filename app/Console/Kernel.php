@@ -17,7 +17,11 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->call('App\Http\Controllers\CommissionHistoryController@store');
-        $schedule->command('products:sync-badges --limit=10 --trending-window=7')->hourly();
+        // products:sync-badges intentionally NOT scheduled: it wiped and rebuilt the
+        // trending_products / bestselling_products tables from order data every hour,
+        // erasing admin's manual Trending/Bestselling selections. Featured was unaffected,
+        // which made it look like only Trending/Bestselling were broken. Run it manually
+        // via `php artisan products:sync-badges` if auto-population is ever wanted.
         $schedule->command('broadcasts:dispatch-due')->everyMinute();
     }
 

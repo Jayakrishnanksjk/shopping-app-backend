@@ -18,6 +18,9 @@ trait PaymentTrait {
     Order::where('parent_id', $order->id)->update(['payment_status' => $status]);
     $order = $order->fresh();
 
+    // Safe to call on every status update (payment polling, webhooks, COD
+    // status changes): updateProductStock() claims a per-order flag
+    // atomically and only ever decrements stock once per order.
     Helpers::updateProductStock($order);
     return $order;
   }

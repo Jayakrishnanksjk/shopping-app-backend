@@ -127,11 +127,12 @@ class CartRepository extends BaseRepository
     public function isStockAvailable($product, $quantity)
     {
         $item = Helpers::getProductStock($product['product_id']);
-        if (isset($product['variation_id'])) {
+        if (isset($product['variation_id']) && !empty($product['variation_id'])) {
             $item = Helpers::getVariationStock($product['variation_id']);
         }
 
-        if ($quantity <= $item->quantity && $item->quantity > 0) {
+        // $item is null when the product/variant is out of stock or inactive.
+        if ($item && $quantity <= $item->quantity) {
             return true;
         }
 

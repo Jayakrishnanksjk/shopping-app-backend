@@ -349,12 +349,41 @@ class Helpers
 
   public static function getVariationStock($variation_id)
   {
-    return Variation::where([['id', $variation_id],['stock_status', 'in_stock'],['quantity', '>', 0], ['status', true]])->first();
+    // quantity is the source of truth for availability. stock_status is a
+    // cached flag that can go stale (e.g. historic double stock decrements),
+    // so only 'coming_soon' blocks selling here; a stale 'out_of_stock'
+    // flag with available quantity is repaired below instead of wrongly
+    // rejecting the checkout.
+    $variation = Variation::where('id', $variation_id)
+      ->where('quantity', '>', 0)
+      ->where('status', true)
+      ->whereIn('stock_status', [StockStatus::IN_STOCK, StockStatus::OUT_OF_STOCK])
+      ->first();
+
+    if ($variation && $variation->stock_status == StockStatus::OUT_OF_STOCK) {
+      self::updateVariationStockStatus($variation_id, StockStatus::IN_STOCK);
+      $variation->stock_status = StockStatus::IN_STOCK;
+    }
+
+    return $variation;
   }
 
   public static function getProductStock($product_id)
   {
-    return Product::where([['id', $product_id],['stock_status', 'in_stock'], ['quantity', '>', 0], ['status', true]])->first();
+    // See getVariationStock(): quantity is the source of truth and a stale
+    // 'out_of_stock' flag is repaired instead of blocking the order.
+    $product = Product::where('id', $product_id)
+      ->where('quantity', '>', 0)
+      ->where('status', true)
+      ->whereIn('stock_status', [StockStatus::IN_STOCK, StockStatus::OUT_OF_STOCK])
+      ->first();
+
+    if ($product && $product->stock_status == StockStatus::OUT_OF_STOCK) {
+      self::updateProductStockStatus($product_id, StockStatus::IN_STOCK);
+      $product->stock_status = StockStatus::IN_STOCK;
+    }
+
+    return $product;
   }
 
   public static function getCountUsedPerConsumer($consumer, $coupon)
@@ -373,7 +402,9 @@ class Helpers
     $product->decrement('quantity', $quantity);
     $product = $product->fresh();
     if ($product->quantity <= 0) {
+      // Persist the clamp so the database never keeps a negative quantity.
       $product->quantity = 0;
+      $product->save();
       self::updateProductStockStatus($product_id, StockStatus::OUT_OF_STOCK);
     }
   }
@@ -386,10 +417,11 @@ class Helpers
   public static function incrementProductQuantity($product_id, $quantity)
   {
     $product = Product::findOrFail($product_id);
-    if ($product->stock_status == StockStatus::OUT_OF_STOCK) {
+    $product->increment('quantity', $quantity);
+    $product = $product->fresh();
+    if ($product->quantity > 0 && $product->stock_status == StockStatus::OUT_OF_STOCK) {
       self::updateProductStockStatus($product_id, StockStatus::IN_STOCK);
     }
-    $product->increment('quantity', $quantity);
   }
 
   public static function updateVariationStockStatus($id, $stock_status)
@@ -403,18 +435,49 @@ class Helpers
     $variation->decrement('quantity', $quantity);
     $variation = $variation->fresh();
     if ($variation->quantity <= 0) {
+      // Persist the clamp so the database never keeps a negative quantity.
       $variation->quantity = 0;
+      $variation->save();
       self::updateVariationStockStatus($variation_id, StockStatus::OUT_OF_STOCK);
     }
+
+    self::syncProductStockFromVariations($variation->product_id);
   }
 
   public static function incrementVariationQuantity($variation_id, $quantity)
   {
     $variation = Variation::findOrFail($variation_id);
-    if ($variation->stock_status == StockStatus::OUT_OF_STOCK) {
+    $variation->increment('quantity', $quantity);
+    $variation = $variation->fresh();
+    if ($variation->quantity > 0 && $variation->stock_status == StockStatus::OUT_OF_STOCK) {
       self::updateVariationStockStatus($variation_id, StockStatus::IN_STOCK);
     }
-    $variation->increment('quantity', $quantity);
+
+    self::syncProductStockFromVariations($variation->product_id);
+  }
+
+  /**
+   * Keep a classified product's aggregate quantity/stock_status in sync with
+   * its variations. products.quantity is defined as max(variation quantities)
+   * on create/update, but variation stock is what actually changes during
+   * orders — without this sync the admin keeps seeing a stale stock number
+   * (e.g. 100) while the variants are already sold out.
+   */
+  public static function syncProductStockFromVariations($product_id)
+  {
+    $product = Product::find($product_id);
+    if (!$product || $product->type != 'classified') {
+      return;
+    }
+
+    $maxQuantity = max((int) Variation::where('product_id', $product_id)->max('quantity'), 0);
+    $stockStatus = $maxQuantity > 0 ? StockStatus::IN_STOCK : StockStatus::OUT_OF_STOCK;
+
+    if ($product->quantity != $maxQuantity || $product->stock_status != $stockStatus) {
+      $product->quantity = $maxQuantity;
+      $product->stock_status = $stockStatus;
+      $product->save();
+    }
   }
 
   public static function isAlreadyReviewed($consumer_id, $product_id)
@@ -557,6 +620,19 @@ class Helpers
   {
     if ($order->payment_status == PaymentStatus::COMPLETED ||
       $order->payment_method == PaymentMethod::COD) {
+
+      // Claim the decrement atomically so each order reduces stock at most
+      // once. Payment status is re-verified on every poll/webhook and COD
+      // orders receive several status updates — decrementing on each of
+      // them silently drained variant stock to zero.
+      $claimed = Order::where('id', $order->id)
+        ->whereNull('stock_decremented_at')
+        ->update(['stock_decremented_at' => now()]);
+
+      if (!$claimed) {
+        return;
+      }
+
       foreach ($order->products as $product) {
         $product = $product->pivot;
         if (isset($product->variation_id) && !empty($product->variation_id)) {
@@ -570,6 +646,12 @@ class Helpers
 
   public static function restockProductStock(Order $order)
   {
+    // Only restock orders whose stock was actually decremented; cancelling
+    // an unpaid order must not inflate inventory.
+    if (is_null($order->stock_decremented_at)) {
+      return;
+    }
+
     foreach ($order->products as $product) {
       $product = $product->pivot;
       if (isset($product->variation_id) && !empty($product->variation_id)) {
@@ -578,5 +660,7 @@ class Helpers
         self::incrementProductQuantity($product->product_id, $product->quantity);
       }
     }
+
+    Order::where('id', $order->id)->update(['stock_decremented_at' => null]);
   }
 }
