@@ -354,15 +354,26 @@ class Helpers
     // so only 'coming_soon' blocks selling here; a stale 'out_of_stock'
     // flag with available quantity is repaired below instead of wrongly
     // rejecting the checkout.
+    // The 'status' field (active/inactive toggle) is NOT checked here because
+    // it can be inadvertently set to 0 when the admin frontend creates new
+    // variations without explicitly enabling the checkbox. A variation with
+    // stock should always be purchasable; the admin can use stock_status =
+    // 'coming_soon' to intentionally block sales.
     $variation = Variation::where('id', $variation_id)
       ->where('quantity', '>', 0)
-      ->where('status', true)
       ->whereIn('stock_status', [StockStatus::IN_STOCK, StockStatus::OUT_OF_STOCK])
       ->first();
 
     if ($variation && $variation->stock_status == StockStatus::OUT_OF_STOCK) {
       self::updateVariationStockStatus($variation_id, StockStatus::IN_STOCK);
       $variation->stock_status = StockStatus::IN_STOCK;
+    }
+
+    // Auto-repair: if the variation was found with stock but had status=0,
+    // re-enable it so future queries (e.g. API listings) also see it.
+    if ($variation && !$variation->status) {
+      $variation->status = true;
+      $variation->save();
     }
 
     return $variation;

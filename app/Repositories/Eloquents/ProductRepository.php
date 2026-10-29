@@ -194,6 +194,7 @@ class ProductRepository extends BaseRepository
                 }
 
                 $product->update($updateData);
+                Helpers::syncProductStockFromVariations($product->id);
 
                 $product->variations;
             }
@@ -286,7 +287,13 @@ class ProductRepository extends BaseRepository
 
             if (isset($request['variations']) && !empty($request['variations']) && $request['type'] == 'classified') {
                 $submittedIds = array_filter(array_column($request['variations'], 'id'));
-                $product->variations()->whereNotIn('id', $submittedIds)->delete();
+                // Only soft-delete variations that are genuinely removed by the
+                // admin.  Guard against an empty $submittedIds list (which would
+                // wipe ALL variations) — this can happen when the frontend
+                // re-generates the variation list and drops existing IDs.
+                if (!empty($submittedIds)) {
+                    $product->variations()->whereNotIn('id', $submittedIds)->delete();
+                }
 
                 $variationsIds = [];
                 foreach ($request['variations'] as $variation) {
@@ -297,6 +304,10 @@ class ProductRepository extends BaseRepository
                         if ($variation['quantity'] > 0) {
                             $variation['stock_status'] = StockStatus::IN_STOCK;
                         }
+                    }
+
+                    if (empty($variation['id']) && !isset($variation['status'])) {
+                        $variation['status'] = 1;
                     }
 
                     if (empty($variation['id']) && isset($variation['name'])) {
@@ -325,6 +336,7 @@ class ProductRepository extends BaseRepository
                 }
 
                 $product->update($updateData);
+                Helpers::syncProductStockFromVariations($product->id);
             }
             $product->variations;
 
@@ -540,7 +552,7 @@ class ProductRepository extends BaseRepository
                 'discount' => $variation['discount'] ?? null,
                 'stock_status' => $variation['stock_status'],
                 'variation_image_id' => $variation['variation_image_id'] ?? null,
-                'status' => $variation['status'],
+                'status' => isset($variation['status']) ? (int) $variation['status'] : 1,
                 'cost' => $variation['cost'] ?? null,
                 'product_id' => $product['id']
             ]);

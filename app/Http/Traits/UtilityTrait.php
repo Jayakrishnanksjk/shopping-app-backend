@@ -110,6 +110,9 @@ trait UtilityTrait
     }
 
     if (!empty($outOfStockProducts)) {
+      \Illuminate\Support\Facades\Log::warning('Checkout/cart stock check failed: items out of stock or inactive', [
+        'items' => $outOfStockProducts
+      ]);
       throw new Exception("Some of the products you've selected are either out of stock or inactive.", 400);
     }
 
