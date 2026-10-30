@@ -300,14 +300,17 @@ class CleanUsers extends Command
                 DB::table('products')->update(['reviews_count' => 0]);
             }
             if (Schema::hasTable('bestselling_products')) {
-                DB::table('bestselling_products')->truncate();
+                DB::table('bestselling_products')->delete();
             }
             if (Schema::hasTable('trending_products')) {
-                DB::table('trending_products')->truncate();
+                DB::table('trending_products')->delete();
             }
 
             Schema::enableForeignKeyConstraints();
-            DB::commit();
+
+            if (DB::transactionLevel() > 0) {
+                DB::commit();
+            }
 
             $this->newLine();
             $this->info('✔ SUCCESS: All consumer user data cleaned successfully!');
@@ -318,8 +321,10 @@ class CleanUsers extends Command
             return self::SUCCESS;
 
         } catch (\Throwable $e) {
-            DB::rollBack();
             Schema::enableForeignKeyConstraints();
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
             $this->error('ERROR during cleanup: ' . $e->getMessage());
             return self::FAILURE;
         }
@@ -379,3 +384,4 @@ class CleanUsers extends Command
             ->count();
     }
 }
+
