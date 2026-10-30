@@ -330,12 +330,8 @@ class CleanUsers extends Command
             if (Schema::hasTable('products') && Schema::hasColumn('products', 'reviews_count')) {
                 DB::table('products')->update(['reviews_count' => 0]);
             }
-            if (Schema::hasTable('bestselling_products')) {
-                DB::table('bestselling_products')->delete();
-            }
-            if (Schema::hasTable('trending_products')) {
-                DB::table('trending_products')->delete();
-            }
+            // Note: trending_products and bestselling_products are catalog curation tables,
+            // not consumer data, so do not delete them.
 
             $this->newLine();
             $this->info('✔ SUCCESS: All consumer user data cleaned successfully!');
