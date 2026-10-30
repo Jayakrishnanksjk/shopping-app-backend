@@ -147,9 +147,10 @@ class CleanUsers extends Command
         $this->newLine();
         $this->info('Cleaning user data safely...');
 
-        DB::beginTransaction();
         try {
             Schema::disableForeignKeyConstraints();
+
+            $chunks = array_chunk($targetUserIds, 500);
 
             // A. Safely reassign created_by_id across all catalog tables
             $tablesWithCreatedBy = [
@@ -175,119 +176,149 @@ class CleanUsers extends Command
 
             foreach ($tablesWithCreatedBy as $table) {
                 if (Schema::hasTable($table) && Schema::hasColumn($table, 'created_by_id')) {
-                    DB::table($table)
-                        ->whereIn('created_by_id', $targetUserIds)
-                        ->update(['created_by_id' => $admin->id]);
+                    foreach ($chunks as $chunk) {
+                        DB::table($table)
+                            ->whereIn('created_by_id', $chunk)
+                            ->update(['created_by_id' => $admin->id]);
+                    }
                 }
             }
 
             // B. If vendors are being cleaned, reassign store ownership to Admin
             if ($includeVendors && Schema::hasTable('stores') && Schema::hasColumn('stores', 'vendor_id')) {
-                DB::table('stores')
-                    ->whereIn('vendor_id', $targetUserIds)
-                    ->update(['vendor_id' => $admin->id]);
+                foreach ($chunks as $chunk) {
+                    DB::table('stores')
+                        ->whereIn('vendor_id', $chunk)
+                        ->update(['vendor_id' => $admin->id]);
+                }
             }
 
             // C. Clean order-related data for targets
-            $orderIds = DB::table('orders')->whereIn('consumer_id', $targetUserIds)->pluck('id')->toArray();
+            $orderIds = [];
+            foreach ($chunks as $chunk) {
+                $ids = DB::table('orders')->whereIn('consumer_id', $chunk)->pluck('id')->toArray();
+                if (!empty($ids)) {
+                    $orderIds = array_merge($orderIds, $ids);
+                }
+            }
+            $orderChunks = array_chunk($orderIds, 500);
+
             if (!empty($orderIds)) {
                 if (Schema::hasTable('order_products')) {
-                    DB::table('order_products')->whereIn('order_id', $orderIds)->delete();
+                    foreach ($orderChunks as $ochunk) {
+                        DB::table('order_products')->whereIn('order_id', $ochunk)->delete();
+                    }
                 }
                 if (Schema::hasTable('order_transactions')) {
-                    DB::table('order_transactions')->whereIn('order_id', $orderIds)->delete();
+                    foreach ($orderChunks as $ochunk) {
+                        DB::table('order_transactions')->whereIn('order_id', $ochunk)->delete();
+                    }
                 }
                 if (Schema::hasTable('commission_histories')) {
-                    DB::table('commission_histories')->whereIn('order_id', $orderIds)->delete();
+                    foreach ($orderChunks as $ochunk) {
+                        DB::table('commission_histories')->whereIn('order_id', $ochunk)->delete();
+                    }
                 }
                 if (Schema::hasTable('cancellations')) {
-                    DB::table('cancellations')->whereIn('order_id', $orderIds)->delete();
+                    foreach ($orderChunks as $ochunk) {
+                        DB::table('cancellations')->whereIn('order_id', $ochunk)->delete();
+                    }
                 }
                 if (Schema::hasTable('refunds')) {
-                    DB::table('refunds')->whereIn('order_id', $orderIds)->delete();
+                    foreach ($orderChunks as $ochunk) {
+                        DB::table('refunds')->whereIn('order_id', $ochunk)->delete();
+                    }
                 }
-                DB::table('orders')->whereIn('id', $orderIds)->delete();
+                foreach ($orderChunks as $ochunk) {
+                    DB::table('orders')->whereIn('id', $ochunk)->delete();
+                }
             }
 
             // Also clean any orphan refunds by consumer_id
             if (Schema::hasTable('refunds')) {
-                DB::table('refunds')->whereIn('consumer_id', $targetUserIds)->delete();
+                foreach ($chunks as $chunk) {
+                    DB::table('refunds')->whereIn('consumer_id', $chunk)->delete();
+                }
             }
 
             // D. Clean customer shopping activity
-            if (Schema::hasTable('carts')) {
-                DB::table('carts')->whereIn('consumer_id', $targetUserIds)->delete();
-            }
-            if (Schema::hasTable('wishlists')) {
-                DB::table('wishlists')->whereIn('consumer_id', $targetUserIds)->delete();
-            }
-            if (Schema::hasTable('compares')) {
-                DB::table('compares')->whereIn('consumer_id', $targetUserIds)->delete();
-            }
-            if (Schema::hasTable('reviews')) {
-                DB::table('reviews')->whereIn('consumer_id', $targetUserIds)->delete();
-            }
-            if (Schema::hasTable('feedbacks')) {
-                DB::table('feedbacks')->whereIn('consumer_id', $targetUserIds)->delete();
-            }
-            if (Schema::hasTable('question_and_answers')) {
-                DB::table('question_and_answers')->whereIn('consumer_id', $targetUserIds)->delete();
-            }
-            if (Schema::hasTable('addresses')) {
-                DB::table('addresses')->whereIn('user_id', $targetUserIds)->delete();
-            }
-            if (Schema::hasTable('wallets')) {
-                DB::table('wallets')->whereIn('consumer_id', $targetUserIds)->delete();
-            }
-            if (Schema::hasTable('points')) {
-                DB::table('points')->whereIn('consumer_id', $targetUserIds)->delete();
-            }
-            if (Schema::hasTable('payment_accounts')) {
-                DB::table('payment_accounts')->whereIn('user_id', $targetUserIds)->delete();
-            }
-            if (Schema::hasTable('device_tokens')) {
-                DB::table('device_tokens')->whereIn('user_id', $targetUserIds)->delete();
+            $consumerTables = [
+                'carts'                => 'consumer_id',
+                'wishlists'            => 'consumer_id',
+                'compares'             => 'consumer_id',
+                'reviews'              => 'consumer_id',
+                'feedbacks'            => 'consumer_id',
+                'question_and_answers' => 'consumer_id',
+                'addresses'            => 'user_id',
+                'wallets'              => 'consumer_id',
+                'points'               => 'consumer_id',
+                'payment_accounts'     => 'user_id',
+                'device_tokens'        => 'user_id',
+            ];
+
+            foreach ($consumerTables as $tbl => $col) {
+                if (Schema::hasTable($tbl)) {
+                    foreach ($chunks as $chunk) {
+                        DB::table($tbl)->whereIn($col, $chunk)->delete();
+                    }
+                }
             }
 
             // E. Clean transactions originating from target consumers
             if (Schema::hasTable('transactions')) {
-                DB::table('transactions')->whereIn('from', $targetUserIds)->delete();
+                foreach ($chunks as $chunk) {
+                    DB::table('transactions')->whereIn('from', $chunk)->delete();
+                }
             }
 
             // F. Clean auth & permission pivots
             if (Schema::hasTable('personal_access_tokens')) {
-                DB::table('personal_access_tokens')
-                    ->where('tokenable_type', 'App\\Models\\User')
-                    ->whereIn('tokenable_id', $targetUserIds)
-                    ->delete();
+                foreach ($chunks as $chunk) {
+                    DB::table('personal_access_tokens')
+                        ->where('tokenable_type', 'App\\Models\\User')
+                        ->whereIn('tokenable_id', $chunk)
+                        ->delete();
+                }
             }
             if (Schema::hasTable('model_has_roles')) {
-                DB::table('model_has_roles')
-                    ->where('model_type', 'App\\Models\\User')
-                    ->whereIn('model_id', $targetUserIds)
-                    ->delete();
+                foreach ($chunks as $chunk) {
+                    DB::table('model_has_roles')
+                        ->where('model_type', 'App\\Models\\User')
+                        ->whereIn('model_id', $chunk)
+                        ->delete();
+                }
             }
             if (Schema::hasTable('model_has_permissions')) {
-                DB::table('model_has_permissions')
-                    ->where('model_type', 'App\\Models\\User')
-                    ->whereIn('model_id', $targetUserIds)
-                    ->delete();
+                foreach ($chunks as $chunk) {
+                    DB::table('model_has_permissions')
+                        ->where('model_type', 'App\\Models\\User')
+                        ->whereIn('model_id', $chunk)
+                        ->delete();
+                }
             }
             if (Schema::hasTable('notifications')) {
-                DB::table('notifications')
-                    ->where('notifiable_type', 'App\\Models\\User')
-                    ->whereIn('notifiable_id', $targetUserIds)
-                    ->delete();
+                foreach ($chunks as $chunk) {
+                    DB::table('notifications')
+                        ->where('notifiable_type', 'App\\Models\\User')
+                        ->whereIn('notifiable_id', $chunk)
+                        ->delete();
+                }
             }
             if (!empty($targetPhones) && Schema::hasTable('otp_codes')) {
-                DB::table('otp_codes')->whereIn('phone', $targetPhones)->delete();
+                foreach (array_chunk($targetPhones, 500) as $phoneChunk) {
+                    DB::table('otp_codes')->whereIn('phone', $phoneChunk)->delete();
+                }
             }
             if (!empty($targetEmails) && Schema::hasTable('password_resets')) {
-                DB::table('password_resets')->whereIn('email', $targetEmails)->delete();
+                foreach (array_chunk($targetEmails, 500) as $emailChunk) {
+                    DB::table('password_resets')->whereIn('email', $emailChunk)->delete();
+                }
             }
 
             // G. Delete target consumer users directly via DB (avoids model events deleting stores/products)
-            DB::table('users')->whereIn('id', $targetUserIds)->delete();
+            foreach ($chunks as $chunk) {
+                DB::table('users')->whereIn('id', $chunk)->delete();
+            }
 
             // H. Reset vendor wallets & product counters
             if (Schema::hasTable('vendor_wallets')) {
@@ -306,12 +337,6 @@ class CleanUsers extends Command
                 DB::table('trending_products')->delete();
             }
 
-            Schema::enableForeignKeyConstraints();
-
-            if (DB::transactionLevel() > 0) {
-                DB::commit();
-            }
-
             $this->newLine();
             $this->info('✔ SUCCESS: All consumer user data cleaned successfully!');
             $this->info('✔ Your catalog (Products, Categories, Stores, Variations, Media, Admin users) is intact.');
@@ -321,12 +346,10 @@ class CleanUsers extends Command
             return self::SUCCESS;
 
         } catch (\Throwable $e) {
-            Schema::enableForeignKeyConstraints();
-            if (DB::transactionLevel() > 0) {
-                DB::rollBack();
-            }
             $this->error('ERROR during cleanup: ' . $e->getMessage());
             return self::FAILURE;
+        } finally {
+            Schema::enableForeignKeyConstraints();
         }
     }
 
