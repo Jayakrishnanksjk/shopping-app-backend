@@ -48,7 +48,13 @@ class CategoryController extends Controller
             $categories = $this->repository->whereNull('parent_id')->with('subcategories', 'parent');
             $categories = $this->filter($categories, $request);
             if (!$request->field && !$request->sort) {
-                $categories = $categories->orderBy('order', 'asc');
+                try {
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('categories', 'order')) {
+                        $categories = $categories->orderByRaw('COALESCE(`categories`.`order`, 0) ASC');
+                    }
+                } catch (\Throwable $e) {
+                    // Fallback gracefully if order column is not yet present in database
+                }
             }
             return $categories->latest('created_at')->paginate($request->paginate ?? $categories->count());
 

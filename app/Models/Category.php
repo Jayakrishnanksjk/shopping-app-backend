@@ -90,12 +90,25 @@ class Category extends Model implements HasMedia
         return ($request->id) ? $request->id : $request->route('category')->id;
     }
 
+    protected static ?bool $hasOrderColumn = null;
+
     /**
      * @return HasMany
      */
     public function subcategories(): HasMany
     {
-        return $this->hasMany(Category::class, 'parent_id')->orderBy('order', 'asc')->with('subcategories','parent');
+        $relation = $this->hasMany(Category::class, 'parent_id')->with('subcategories','parent');
+        try {
+            if (self::$hasOrderColumn === null) {
+                self::$hasOrderColumn = \Illuminate\Support\Facades\Schema::hasColumn('categories', 'order');
+            }
+            if (self::$hasOrderColumn) {
+                $relation->orderByRaw('COALESCE(`categories`.`order`, 0) ASC');
+            }
+        } catch (\Throwable $e) {
+            // Fallback silently if schema check fails
+        }
+        return $relation;
     }
 
     /**

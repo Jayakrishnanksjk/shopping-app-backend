@@ -13,7 +13,7 @@ return new class extends Migration
     {
         if (!Schema::hasColumn('categories', 'order')) {
             Schema::table('categories', function (Blueprint $table) {
-                $table->integer('order')->default(0)->index();
+                $table->integer('order')->default(0)->nullable()->index('categories_order_index');
             });
         }
     }
@@ -25,7 +25,7 @@ return new class extends Migration
     {
         if (Schema::hasColumn('categories', 'order')) {
             Schema::table('categories', function (Blueprint $table) {
-                $table->dropIndex(['order']);
+                $table->dropIndex('categories_order_index');
                 $table->dropColumn('order');
             });
         }
