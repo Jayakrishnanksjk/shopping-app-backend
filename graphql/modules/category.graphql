@@ -7,6 +7,7 @@ type Category {
     commission_rate: Float
     category_image_id: Int
     category_icon_id: Int
+    order: Int
     status: Int
     type: String
     store_id: Int
@@ -28,6 +29,7 @@ input CreateCategoryInput {
     commission_rate: Float
     category_image_id: Int
     category_icon_id: Int
+    order: Int
     parent_id: Int
     store_id: Int
 }
@@ -42,6 +44,7 @@ input UpdateCategoryInput {
     commission_rate: Float
     category_image_id: Int
     category_icon_id: Int
+    order: Int
     parent_id: Int
     store_id: Int
 }

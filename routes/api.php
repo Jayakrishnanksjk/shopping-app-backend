@@ -288,6 +288,7 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   Route::apiResource('category', 'App\Http\Controllers\CategoryController',[
     'only' => ['store', 'update', 'destroy'],
   ]);
+  Route::patch('category/reorder', 'App\Http\Controllers\CategoryController@reorder')->middleware('can:category.edit');
   Route::post('category/csv/import', 'App\Http\Controllers\CategoryController@import')->middleware('can:category.create');
   Route::post('category/csv/export', 'App\Http\Controllers\CategoryController@export')->name('categories.export')->middleware('can:category.index');
   Route::put('category/{id}/{status}', 'App\Http\Controllers\CategoryController@status')->middleware('can:category.edit');

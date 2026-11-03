@@ -47,6 +47,9 @@ class CategoryController extends Controller
 
             $categories = $this->repository->whereNull('parent_id')->with('subcategories', 'parent');
             $categories = $this->filter($categories, $request);
+            if (!$request->field && !$request->sort) {
+                $categories = $categories->orderBy('order', 'asc');
+            }
             return $categories->latest('created_at')->paginate($request->paginate ?? $categories->count());
 
         } catch (Exception $e) {
@@ -157,6 +160,42 @@ class CategoryController extends Controller
     public function status($id, $status)
     {
         return $this->repository->status($id, $status);
+    }
+
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:categories,id',
+            'categories' => 'nullable|array',
+        ]);
+
+        try {
+            if ($request->has('categories') && is_array($request->categories)) {
+                foreach ($request->categories as $index => $item) {
+                    $id = is_array($item) ? ($item['id'] ?? null) : $item;
+                    $order = is_array($item) ? ($item['order'] ?? ($index + 1)) : ($index + 1);
+                    $updateData = ['order' => $order];
+                    if (is_array($item) && array_key_exists('parent_id', $item)) {
+                        $updateData['parent_id'] = $item['parent_id'];
+                    }
+                    if ($id) {
+                        Category::where('id', $id)->update($updateData);
+                    }
+                }
+            } elseif ($request->has('category_ids') && is_array($request->category_ids)) {
+                foreach ($request->input('category_ids') as $index => $id) {
+                    Category::where('id', $id)->update(['order' => $index + 1]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Categories reordered successfully'
+            ]);
+        } catch (Exception $e) {
+            throw new ExceptionHandler($e->getMessage(), 500);
+        }
     }
 
     /**

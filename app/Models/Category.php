@@ -35,7 +35,8 @@ class Category extends Model implements HasMedia
         'parent_id',
         'store_id',
         'commission_rate',
-        'created_by_id'
+        'created_by_id',
+        'order'
     ];
 
     protected $with = [
@@ -57,6 +58,7 @@ class Category extends Model implements HasMedia
         'products_count' => 'integer',
         'commission_rate' =>  'float',
         'category_icon_id' => 'integer',
+        'order' => 'integer',
     ];
 
     public static function boot()
@@ -93,7 +95,7 @@ class Category extends Model implements HasMedia
      */
     public function subcategories(): HasMany
     {
-        return $this->hasMany(Category::class, 'parent_id')->with('subcategories','parent');
+        return $this->hasMany(Category::class, 'parent_id')->orderBy('order', 'asc')->with('subcategories','parent');
     }
 
     /**
