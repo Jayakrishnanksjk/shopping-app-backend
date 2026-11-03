@@ -49,13 +49,30 @@
                 </div>
             </td>
             <td>
-                <div class="box-text">
+                <div class="box-text" style="width:68%;float:left;">
                     <p>{{$orders->shipping_address->street}}</p>
                     <p>{{$orders->shipping_address->pincode}},</p>
                     <p>{{$orders->shipping_address->city}},</p>
                     <p>{{$orders->shipping_address?->state->name}}, {{$orders->shipping_address?->country->name}}</p>
                     <p>Contact: ({{$orders->shipping_address?->country_code}}) {{$orders->shipping_address?->phone}}</p>
                 </div>
+                @php
+                    $shippingAddressString = implode(', ', array_filter([
+                        $orders->shipping_address?->street,
+                        $orders->shipping_address?->city,
+                        $orders->shipping_address?->state?->name,
+                        $orders->shipping_address?->country?->name,
+                        $orders->shipping_address?->pincode,
+                    ]));
+                    $mapUrl = !empty($shippingAddressString) ? 'https://www.google.com/maps/search/?api=1&query=' . urlencode($shippingAddressString) : null;
+                @endphp
+                @if($mapUrl)
+                <div style="width:30%;float:right;text-align:center;">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=85x85&data={{ urlencode($mapUrl) }}" alt="Map QR" style="width:75px;height:75px;" />
+                    <p style="font-size:9px;color:#555;margin:2px 0 0 0;line-height:11px;">Map Location</p>
+                </div>
+                @endif
+                <div style="clear:both;"></div>
             </td>
         </tr>
     </table>
