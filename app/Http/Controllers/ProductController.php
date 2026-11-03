@@ -52,7 +52,8 @@ class ProductController extends Controller
         try {
 
             $product = $this->filter($this->repository, $request);
-            return $product->latest('created_at')->paginate($request->paginate ?? $product->count());
+            $paginate = $request->has('paginate') ? (int) $request->paginate : ($product->count() > 500 ? 50 : ($product->count() ?: 15));
+            return $product->latest('created_at')->paginate($paginate);
 
         } catch (Exception $e) {
 
@@ -277,6 +278,15 @@ class ProductController extends Controller
 
         if ($request->filled('stock_status')) {
             $product = $product->where('stock_status', $request->stock_status);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $product = $product->where(function ($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('sku', 'LIKE', "%{$search}%")
+                  ->orWhere('barcode', 'LIKE', "%{$search}%");
+            });
         }
 
         if ($request->ids) {
