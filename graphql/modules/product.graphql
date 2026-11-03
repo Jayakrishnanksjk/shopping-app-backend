@@ -30,6 +30,8 @@ type Product {
     is_return: Int
     is_featured: Int
     is_category_top: Int
+    maximum_purchase_limit: Int
+    minimum_purchase_limit: Int
     show_stock_quantity: Int
     shipping_days: Int
     store_id: Int
@@ -50,6 +52,8 @@ type Product {
     is_sale_enable: Int
     is_approved: Int
     is_category_top: Int
+    maximum_purchase_limit: Int
+    minimum_purchase_limit: Int
     sale_starts_at: String
     sale_expired_at: String
     is_trending: Int
@@ -126,6 +130,8 @@ input CreateProductInput {
     is_return: Int
     is_featured: Int
     is_category_top: Int
+    maximum_purchase_limit: Int
+    minimum_purchase_limit: Int
     show_stock_quantity: Int
     shipping_days: Int
     product_thumbnail_id: Int
@@ -188,6 +194,8 @@ input UpdateProductInput {
     is_return: Int
     is_featured: Int
     is_category_top: Int
+    maximum_purchase_limit: Int
+    minimum_purchase_limit: Int
     show_stock_quantity: Int
     shipping_days: Int
     product_thumbnail_id: Int
