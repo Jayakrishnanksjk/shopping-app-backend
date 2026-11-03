@@ -13,7 +13,7 @@ return new class extends Migration
     {
         if (!Schema::hasColumn('products', 'is_category_top')) {
             Schema::table('products', function (Blueprint $table) {
-                $table->boolean('is_category_top')->default(0)->after('is_featured')->index();
+                $table->boolean('is_category_top')->default(0)->index();
             });
         }
     }
@@ -31,3 +31,4 @@ return new class extends Migration
         }
     }
 };
+
