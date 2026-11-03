@@ -29,6 +29,7 @@ type Product {
     is_free_shipping: Int
     is_return: Int
     is_featured: Int
+    is_category_top: Int
     show_stock_quantity: Int
     shipping_days: Int
     store_id: Int
@@ -48,6 +49,7 @@ type Product {
     created_by_id: Int
     is_sale_enable: Int
     is_approved: Int
+    is_category_top: Int
     sale_starts_at: String
     sale_expired_at: String
     is_trending: Int
@@ -123,6 +125,7 @@ input CreateProductInput {
     is_free_shipping: Int
     is_return: Int
     is_featured: Int
+    is_category_top: Int
     show_stock_quantity: Int
     shipping_days: Int
     product_thumbnail_id: Int
@@ -184,6 +187,7 @@ input UpdateProductInput {
     is_free_shipping: Int
     is_return: Int
     is_featured: Int
+    is_category_top: Int
     show_stock_quantity: Int
     shipping_days: Int
     product_thumbnail_id: Int
@@ -291,6 +295,7 @@ extend type Query {
         paginate: Int
         store_slug: String
         trending:Boolean
+        is_category_top: Int
         out_of_stock:Boolean
         stock_status:String
         top_selling: Int

@@ -162,6 +162,7 @@ class ProductRepository extends BaseRepository
                 'tax_id' => $request->tax_id,
                 'status' => $request->status,
                 'is_approved' => 1,
+                'is_category_top' => $request->is_category_top ?? 0,
                 'cost' => $request->cost,
                 'default_variation_id' => $request->default_variation_id,
                 'store_id' => $store_id,

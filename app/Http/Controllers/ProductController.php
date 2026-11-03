@@ -252,6 +252,10 @@ class ProductController extends Controller
             }
         }
 
+        if (isset($request->is_category_top)) {
+            $product = $product->where('is_category_top', (int) $request->is_category_top);
+        }
+
         if (isset($request->bestselling)) {
             if ($request->bestselling) {
                 $product = $product->whereHas('bestselling_product');
@@ -308,6 +312,10 @@ class ProductController extends Controller
             $product = $product->whereHas('tags', function (Builder $tags) use($slugs){
                 $tags->WhereIn('slug', $slugs);
             });
+        }
+
+        if ($request->category || $request->category_ids || $request->category_id) {
+            $product = $product->orderBy('is_category_top', 'desc');
         }
 
         if ($request->field && $request->sort) {

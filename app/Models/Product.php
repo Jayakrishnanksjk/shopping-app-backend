@@ -74,6 +74,7 @@ class Product extends Model implements HasMedia
         'cost',
         'default_variation_id',
         'created_by_id',
+        'is_category_top',
         'maximum_purchase_limit',
         'minimum_purchase_limit'
     ];
@@ -139,6 +140,7 @@ class Product extends Model implements HasMedia
         'minimum_purchase_limit' => 'integer',
         'is_trending' => 'integer',
         'is_bestselling' => 'integer',
+        'is_category_top' => 'integer',
         'badge_text' => 'string',
         'status' => 'integer',
         'is_approved' => 'integer',
