@@ -6,6 +6,9 @@ use Exception;
 use App\Models\Order;
 use App\Models\Refund;
 use App\Enums\RoleEnum;
+use App\Enums\OrderEnum;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Helpers\Helpers;
 use Illuminate\Http\Request;
 use App\Http\Requests\CreateOrderRequest;
@@ -150,6 +153,21 @@ class OrderController extends Controller
 
         if ($roleName == RoleEnum::VENDOR) {
             $orders = $this->repository->whereNotNull('parent_id')->where('store_id',Helpers::getCurrentVendorStoreId());
+        }
+
+        // Hide unpaid online payment attempts by default (e.g. abandoned PhonePe/UPI checkouts)
+        // Keep orders if:
+        //  - payment_method is COD
+        //  - OR payment_status is COMPLETED
+        //  - OR order has already moved past initial 'pending' status (e.g. cancelled, confirmed, processing)
+        // If caller explicitly specifies ?payment_status=... or ?include_unpaid=1, don't filter them out.
+        if (!$request->has('payment_status') && !$request->boolean('include_unpaid')) {
+            $pendingStatusId = Helpers::getOrderStatusIdByName(OrderEnum::PENDING);
+            $orders = $orders->where(function ($q) use ($pendingStatusId) {
+                $q->whereRaw('LOWER(payment_method) = ?', [strtolower(PaymentMethod::COD)])
+                  ->orWhere('payment_status', PaymentStatus::COMPLETED)
+                  ->orWhere('order_status_id', '!=', $pendingStatusId);
+            });
         }
 
         if ($request->field && $request->sort) {

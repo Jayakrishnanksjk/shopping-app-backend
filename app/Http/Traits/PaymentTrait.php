@@ -4,6 +4,8 @@ namespace App\Http\Traits;
 use App\Models\Order;
 use App\Helpers\Helpers;
 use App\Models\OrderTransaction;
+use App\Enums\PaymentStatus;
+use App\Events\PlaceOrderEvent;
 
 trait PaymentTrait {
 
@@ -11,6 +13,9 @@ trait PaymentTrait {
 
   public static function updateOrderPaymentStatus(Order $order, $status)
   {
+    $previousStatus = strtoupper($order->payment_status ?? '');
+    $wasAlreadyPaid = in_array($previousStatus, [PaymentStatus::COMPLETED, 'PAID', 'SUCCESS']);
+
     $order->update([
       'payment_status' => $status
     ]);
@@ -22,6 +27,18 @@ trait PaymentTrait {
     // status changes): updateProductStock() claims a per-order flag
     // atomically and only ever decrements stock once per order.
     Helpers::updateProductStock($order);
+
+    // If transitioning to COMPLETED for an online payment for the first time,
+    // dispatch PlaceOrderEvent so store/admin/customer receive order notifications.
+    if (!$wasAlreadyPaid && strtoupper($status) === PaymentStatus::COMPLETED) {
+      $parentOrder = $order->parent_id ? Order::find($order->parent_id) : $order;
+      if ($parentOrder) {
+        event(new PlaceOrderEvent($parentOrder));
+      } else {
+        event(new PlaceOrderEvent($order));
+      }
+    }
+
     return $order;
   }
 

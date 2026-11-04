@@ -23,6 +23,7 @@ class Kernel extends ConsoleKernel
         // which made it look like only Trending/Bestselling were broken. Run it manually
         // via `php artisan products:sync-badges` if auto-population is ever wanted.
         $schedule->command('broadcasts:dispatch-due')->everyMinute();
+        $schedule->command('orders:cancel-unpaid --minutes=15')->everyTenMinutes();
     }
 
     /**

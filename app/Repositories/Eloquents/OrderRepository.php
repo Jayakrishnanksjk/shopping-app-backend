@@ -310,7 +310,14 @@ class OrderRepository extends BaseRepository
             $order->products;
             $order->order_status;
 
-            event(new PlaceOrderEvent($order));
+            // Only fire PlaceOrderEvent immediately for COD or 100% free/wallet orders.
+            // For online payment gateways (PhonePe, RazorPay, Stripe, etc.), PlaceOrderEvent
+            // is deferred until the payment gateway confirms COMPLETED via webhook/status check.
+            $isCod = strtolower($request->payment_method ?? '') === strtolower(PaymentMethod::COD);
+            $isFree = (float)($item['total']['total'] ?? 0) <= 0;
+            if ($isCod || $isFree) {
+                event(new PlaceOrderEvent($order));
+            }
             return $order;
         }
     }
