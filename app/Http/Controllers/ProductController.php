@@ -353,8 +353,15 @@ class ProductController extends Controller
             if ($request->sortBy == SortByEnum::DISCOUNT_HIGH_TO_LOW) $product->orderBy('discount', SortByEnum::DESC);
         }
 
-        if ($request->store_id) {
-            $product = $product->where('store_id',$request->store_id);
+        $storeId = $request->store_id ?: $request->header('X-Store-Id');
+        if ($storeId) {
+            if ((int)$storeId === 3) {
+                $product = $product->where(function ($q) use ($storeId) {
+                    $q->where('store_id', $storeId)->orWhereNull('store_id');
+                });
+            } else {
+                $product = $product->where('store_id', $storeId);
+            }
         }
 
         if ($request->store_slug) {

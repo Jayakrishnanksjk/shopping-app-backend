@@ -91,7 +91,7 @@ class ProductRepository extends BaseRepository
 
             $quantity = 0;
             $roleName = Helpers::getCurrentRoleName();
-            $store_id = $request->store_id;
+            $store_id = $request->store_id ?: $request->header('X-Store-Id');
 
             if ($roleName != RoleEnum::ADMIN) {
                 $settings = Helpers::getSettings();
@@ -103,7 +103,7 @@ class ProductRepository extends BaseRepository
             }
 
             if ($roleName == RoleEnum::VENDOR) {
-                $store_id = Helpers::getCurrentVendorStoreId() ?? $request->store_id;
+                $store_id = Helpers::getCurrentVendorStoreId() ?? $store_id;
             }
 
             if (isset($request['variations']) && !empty($request['variations']) && $request->type == 'classified') {
