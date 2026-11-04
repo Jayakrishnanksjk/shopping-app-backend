@@ -254,7 +254,11 @@ class ProductController extends Controller
         }
 
         if (isset($request->is_category_top)) {
-            $product = $product->where('is_category_top', (int) $request->is_category_top);
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('products', 'is_category_top')) {
+                    $product = $product->where('is_category_top', (int) $request->is_category_top);
+                }
+            } catch (\Throwable $e) {}
         }
 
         if (isset($request->bestselling)) {
@@ -325,7 +329,11 @@ class ProductController extends Controller
         }
 
         if ($request->category || $request->category_ids || $request->category_id) {
-            $product = $product->orderBy('is_category_top', 'desc');
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('products', 'is_category_top')) {
+                    $product = $product->orderBy('is_category_top', 'desc');
+                }
+            } catch (\Throwable $e) {}
         }
 
         if ($request->field && $request->sort) {

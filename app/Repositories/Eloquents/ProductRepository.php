@@ -124,7 +124,7 @@ class ProductRepository extends BaseRepository
 
 
 
-            $product = $this->model->create([
+            $productData = [
                 'name' => $request->name,
                 'short_description' => $request->short_description,
                 'description' => $request->description,
@@ -160,9 +160,8 @@ class ProductRepository extends BaseRepository
                 'encourage_order' => $request->encourage_order,
                 'encourage_view' => $request->encourage_view,
                 'tax_id' => $request->tax_id,
-                'status' => $request->status,
+                'status' => $request->status ?? 1,
                 'is_approved' => 1,
-                'is_category_top' => $request->is_category_top ?? 0,
                 'cost' => $request->cost,
                 'default_variation_id' => $request->default_variation_id,
                 'store_id' => $store_id,
@@ -170,7 +169,15 @@ class ProductRepository extends BaseRepository
                 'hsn_code' => $request->hsn_code,
                 'maximum_purchase_limit' => $request->maximum_purchase_limit,
                 'minimum_purchase_limit' => $request->minimum_purchase_limit,
-            ]);
+            ];
+
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('products', 'is_category_top')) {
+                    $productData['is_category_top'] = $request->is_category_top ?? 0;
+                }
+            } catch (\Throwable $e) {}
+
+            $product = $this->model->create($productData);
 
             $this->relationProductModels($request, $product);
             if (isset($request['variations']) && !empty($request['variations']) && $request->type == 'classified'){
