@@ -38,4 +38,17 @@ class ExceptionHandler extends Exception implements ClientAware, ProvidesExtensi
             "success" => false
         ], $this->statusCode));
     }
+
+    public function getStatusCode(): int
+    {
+        return $this->statusCode;
+    }
+
+    public function render($request)
+    {
+        return response()->json([
+            "message" => $this->message,
+            "success" => false
+        ], $this->statusCode);
+    }
 }

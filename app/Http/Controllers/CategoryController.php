@@ -272,23 +272,58 @@ class CategoryController extends Controller
         if ($request->store_id) {
             $store_id = $request->store_id;
             $categories = $categories->where(function ($q) use ($store_id) {
-                $q->where('store_id', $store_id)
-                  ->orWhereHas('products', function (Builder $products) use ($store_id) {
-                      $products->where('store_id', $store_id);
-                  });
+                if ((int)$store_id === 3 || (int)$store_id === 1) {
+                    $q->where('store_id', $store_id)
+                      ->orWhereNull('store_id')
+                      ->orWhereHas('products', function (Builder $products) use ($store_id) {
+                          $products->where('store_id', $store_id)->orWhereNull('store_id');
+                      })
+                      ->orWhereHas('subcategories.products', function (Builder $products) use ($store_id) {
+                          $products->where('store_id', $store_id)->orWhereNull('store_id');
+                      });
+                } else {
+                    $q->where('store_id', $store_id)
+                      ->orWhereHas('products', function (Builder $products) use ($store_id) {
+                          $products->where('store_id', $store_id);
+                      })
+                      ->orWhereHas('subcategories.products', function (Builder $products) use ($store_id) {
+                          $products->where('store_id', $store_id);
+                      });
+                }
             });
         }
 
         if ($request->store_slug) {
             $store_slug = $request->store_slug;
             $categories = $categories->where(function ($q) use ($store_slug) {
-                $q->whereHas('store', function (Builder $stores) use ($store_slug) {
-                    $stores->where('slug', $store_slug);
-                })->orWhereHas('products', function (Builder $products) use ($store_slug) {
-                    $products->whereHas('store', function (Builder $stores) use ($store_slug) {
+                if ($store_slug === 'grocery' || $store_slug === 'main-store') {
+                    $q->whereHas('store', function (Builder $stores) use ($store_slug) {
                         $stores->where('slug', $store_slug);
+                    })->orWhereNull('store_id')
+                    ->orWhereHas('products', function (Builder $products) use ($store_slug) {
+                        $products->whereHas('store', function (Builder $stores) use ($store_slug) {
+                            $stores->where('slug', $store_slug);
+                        })->orWhereNull('store_id');
+                    })
+                    ->orWhereHas('subcategories.products', function (Builder $products) use ($store_slug) {
+                        $products->whereHas('store', function (Builder $stores) use ($store_slug) {
+                            $stores->where('slug', $store_slug);
+                        })->orWhereNull('store_id');
                     });
-                });
+                } else {
+                    $q->whereHas('store', function (Builder $stores) use ($store_slug) {
+                        $stores->where('slug', $store_slug);
+                    })->orWhereHas('products', function (Builder $products) use ($store_slug) {
+                        $products->whereHas('store', function (Builder $stores) use ($store_slug) {
+                            $stores->where('slug', $store_slug);
+                        });
+                    })
+                    ->orWhereHas('subcategories.products', function (Builder $products) use ($store_slug) {
+                        $products->whereHas('store', function (Builder $stores) use ($store_slug) {
+                            $stores->where('slug', $store_slug);
+                        });
+                    });
+                }
             });
         }
 

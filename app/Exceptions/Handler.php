@@ -61,6 +61,15 @@ class Handler extends ExceptionHandler
                 throw new GraphQLExceptionHandler($exception->getMessage(), 400);
             }
         });
+
+        $this->renderable(function (GraphQLExceptionHandler $e, $request) {
+            $code = $e->getCode();
+            $statusCode = (is_int($code) && $code >= 100 && $code <= 599) ? $code : 500;
+            return response()->json([
+                'message' => $e->getMessage(),
+                'success' => false,
+            ], $statusCode);
+        });
     }
 
     /**

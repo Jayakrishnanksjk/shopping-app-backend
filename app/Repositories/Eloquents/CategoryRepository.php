@@ -55,9 +55,10 @@ class CategoryRepository extends BaseRepository
         DB::beginTransaction();
         try {
 
-            $store_id = $request->store_id;
+            $rawStoreId = $request->store_id ?: $request->header('X-Store-Id');
+            $store_id = ($rawStoreId !== null && $rawStoreId !== '') ? (int) $rawStoreId : null;
             if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
-                $store_id = Helpers::getCurrentVendorStoreId() ?? $request->store_id;
+                $store_id = Helpers::getCurrentVendorStoreId() ?? $store_id;
             }
 
             $category =  $this->model->create([

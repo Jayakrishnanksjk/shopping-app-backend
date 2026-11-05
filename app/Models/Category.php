@@ -69,6 +69,12 @@ class Category extends Model implements HasMedia
             if (!$model->store_id && Helpers::isUserLogin() && Helpers::getCurrentRoleName() == \App\Enums\RoleEnum::VENDOR) {
                 $model->store_id = Helpers::getCurrentVendorStoreId();
             }
+            if (!$model->store_id && request()) {
+                $headerStoreId = request()->header('X-Store-Id') ?: request()->input('store_id');
+                if ($headerStoreId) {
+                    $model->store_id = (int) $headerStoreId;
+                }
+            }
         });
     }
 

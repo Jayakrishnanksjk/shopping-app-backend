@@ -91,7 +91,8 @@ class ProductRepository extends BaseRepository
 
             $quantity = 0;
             $roleName = Helpers::getCurrentRoleName();
-            $store_id = $request->store_id ?: $request->header('X-Store-Id');
+            $rawStoreId = $request->store_id ?: $request->header('X-Store-Id');
+            $store_id = ($rawStoreId !== null && $rawStoreId !== '') ? (int) $rawStoreId : null;
 
             if ($roleName != RoleEnum::ADMIN) {
                 $settings = Helpers::getSettings();
@@ -159,16 +160,16 @@ class ProductRepository extends BaseRepository
                 'social_share' => $request->social_share,
                 'encourage_order' => $request->encourage_order,
                 'encourage_view' => $request->encourage_view,
-                'tax_id' => $request->tax_id,
+                'tax_id' => ($request->tax_id !== '' && $request->tax_id !== null) ? (int) $request->tax_id : null,
                 'status' => $request->status ?? 1,
                 'is_approved' => 1,
-                'cost' => $request->cost,
-                'default_variation_id' => $request->default_variation_id,
+                'cost' => ($request->cost !== '' && $request->cost !== null) ? (float) $request->cost : null,
+                'default_variation_id' => ($request->default_variation_id !== '' && $request->default_variation_id !== null) ? (int) $request->default_variation_id : null,
                 'store_id' => $store_id,
                 'barcode' => $request->barcode,
                 'hsn_code' => $request->hsn_code,
-                'maximum_purchase_limit' => $request->maximum_purchase_limit,
-                'minimum_purchase_limit' => $request->minimum_purchase_limit,
+                'maximum_purchase_limit' => ($request->maximum_purchase_limit !== '' && $request->maximum_purchase_limit !== null) ? (int) $request->maximum_purchase_limit : null,
+                'minimum_purchase_limit' => ($request->minimum_purchase_limit !== '' && $request->minimum_purchase_limit !== null) ? (int) $request->minimum_purchase_limit : null,
             ];
 
             try {
@@ -498,41 +499,43 @@ class ProductRepository extends BaseRepository
     public function relationProductModels($request, $product)
     {
         $related_product_ids = null;
-        if (!is_null($request->related_products) && $request->is_random_related_products) {
+        if (!empty($request->related_products) && $request->is_random_related_products) {
             if (isset($request->categories) && is_array($request->categories) && !empty($request->categories)) {
                 $rand_category_id = $request->categories[array_rand($request->categories)];
                 $related_product_ids = Helpers::getRelatedProductId($this->model, $rand_category_id);
-                $product->similar_products()->attach($related_product_ids);
-                $product->related_products;
+                if (!empty($related_product_ids)) {
+                    $product->similar_products()->attach($related_product_ids);
+                    $product->related_products;
+                }
             }
         }
 
-        if (isset($request->product_galleries_id)) {
+        if (!empty($request->product_galleries_id) && is_array($request->product_galleries_id)) {
             $product->product_galleries()->attach($request->product_galleries_id);
             $product->product_galleries;
         }
 
-        if (isset($request->categories)) {
+        if (!empty($request->categories) && is_array($request->categories)) {
             $product->categories()->attach($request->categories);
             $product->categories;
         }
 
-        if (isset($request->tags)) {
+        if (!empty($request->tags) && is_array($request->tags)) {
             $product->tags()->attach($request->tags);
             $product->tags;
         }
 
-        if (isset($request->attributes_ids)) {
+        if (!empty($request->attributes_ids) && is_array($request->attributes_ids)) {
             $product->attributes()->attach($request->attributes_ids);
             $product->attributes;
         }
 
-        if (!is_null($request->related_products) && !$request->is_random_related_products) {
-            $product->similar_products()->attach($request->related_products ?? $related_product_ids);
+        if (!empty($request->related_products) && !$request->is_random_related_products) {
+            $product->similar_products()->attach($request->related_products);
             $product->related_products;
         }
 
-        if (isset($request->cross_sell_products)) {
+        if (!empty($request->cross_sell_products) && is_array($request->cross_sell_products)) {
             $product->cross_products()->attach($request->cross_sell_products);
             $product->cross_products;
         }
