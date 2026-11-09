@@ -20,6 +20,7 @@ class CreateOfferBannerRequest extends FormRequest
             'banner_image_id' => ['required', 'integer', 'exists:attachments,id'],
             'redirect_type' => ['required', 'in:product,category'],
             'redirect_id' => ['required', 'integer'],
+            'store_id' => ['nullable', 'exists:stores,id'],
             'status' => ['required', 'min:0', 'max:1'],
         ];
     }

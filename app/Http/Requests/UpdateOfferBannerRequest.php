@@ -20,6 +20,7 @@ class UpdateOfferBannerRequest extends FormRequest
             'banner_image_id' => ['nullable', 'integer', 'exists:attachments,id'],
             'redirect_type' => ['nullable', 'in:product,category'],
             'redirect_id' => ['nullable', 'integer'],
+            'store_id' => ['nullable', 'exists:stores,id'],
             'status' => ['nullable', 'min:0', 'max:1'],
         ];
     }

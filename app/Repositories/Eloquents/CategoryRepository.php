@@ -92,7 +92,15 @@ class CategoryRepository extends BaseRepository
         try {
 
             $category = $this->model->findOrFail($id);
-            $category->update($request);
+            if (is_object($request)) {
+                $data = $request->all();
+                if ($request->has('store_id')) {
+                    $data['store_id'] = ($request->store_id !== '' && $request->store_id !== null) ? (int) $request->store_id : null;
+                }
+            } else {
+                $data = $request;
+            }
+            $category->update($data);
 
             if (isset($request['category_image_id'])) {
                 $category->category_image()->associate($request['category_image_id']);

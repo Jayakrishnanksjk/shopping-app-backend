@@ -4,6 +4,8 @@ namespace App\Repositories\Eloquents;
 
 use Exception;
 use App\Models\OfferBanner;
+use App\Enums\RoleEnum;
+use App\Helpers\Helpers;
 use Illuminate\Support\Facades\DB;
 use App\GraphQL\Exceptions\ExceptionHandler;
 use Prettus\Repository\Eloquent\BaseRepository;
@@ -42,11 +44,18 @@ class OfferBannerRepository extends BaseRepository
     {
         DB::beginTransaction();
         try {
+            $rawStoreId = $request->store_id ?: $request->header('X-Store-Id');
+            $store_id = ($rawStoreId !== null && $rawStoreId !== '') ? (int) $rawStoreId : null;
+            if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
+                $store_id = Helpers::getCurrentVendorStoreId() ?? $store_id;
+            }
+
             $offerBanner = $this->model->create([
                 'name' => $request->name,
                 'banner_image_id' => $request->banner_image_id,
                 'redirect_type' => $request->redirect_type,
                 'redirect_id' => $request->redirect_id,
+                'store_id' => $store_id,
                 'status' => $request->status,
             ]);
 
@@ -63,7 +72,15 @@ class OfferBannerRepository extends BaseRepository
         DB::beginTransaction();
         try {
             $offerBanner = $this->model->findOrFail($id);
-            $offerBanner->update($request);
+            if (is_object($request)) {
+                $data = $request->all();
+                if ($request->has('store_id')) {
+                    $data['store_id'] = ($request->store_id !== '' && $request->store_id !== null) ? (int) $request->store_id : null;
+                }
+            } else {
+                $data = $request;
+            }
+            $offerBanner->update($data);
 
             DB::commit();
             return $offerBanner;

@@ -269,8 +269,8 @@ class CategoryController extends Controller
             $categories = $categories->where('status', $request->status);
         }
 
-        if ($request->store_id) {
-            $store_id = $request->store_id;
+        $store_id = $request->store_id ?: $request->header('X-Store-Id');
+        if ($store_id) {
             $categories = $categories->where(function ($q) use ($store_id) {
                 if ((int)$store_id === 3 || (int)$store_id === 1) {
                     $q->where('store_id', $store_id)
