@@ -109,7 +109,7 @@ class Category extends Model implements HasMedia
                 self::$hasOrderColumn = \Illuminate\Support\Facades\Schema::hasColumn('categories', 'order');
             }
             if (self::$hasOrderColumn) {
-                $relation->orderByRaw('COALESCE(`categories`.`order`, 0) ASC');
+                $relation->orderByRaw('CASE WHEN `categories`.`order` IS NULL OR `categories`.`order` = 0 THEN 999999 ELSE `categories`.`order` END ASC, `categories`.`id` ASC');
             }
         } catch (\Throwable $e) {
             // Fallback silently if schema check fails

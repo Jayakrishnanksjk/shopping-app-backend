@@ -47,15 +47,19 @@ class CategoryController extends Controller
 
             $categories = $this->repository->whereNull('parent_id')->with('subcategories', 'parent');
             $categories = $this->filter($categories, $request);
-            if (!$request->field && !$request->sort) {
-                try {
-                    if (\Illuminate\Support\Facades\Schema::hasColumn('categories', 'order')) {
-                        $categories = $categories->orderByRaw('COALESCE(`categories`.`order`, 0) ASC');
-                    }
-                } catch (\Throwable $e) {
-                    // Fallback gracefully if order column is not yet present in database
-                }
+            if ($request->field && $request->sort) {
+                return $categories->paginate($request->paginate ?? $categories->count());
             }
+
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('categories', 'order')) {
+                    $categories = $categories->orderByRaw('CASE WHEN `categories`.`order` IS NULL OR `categories`.`order` = 0 THEN 999999 ELSE `categories`.`order` END ASC, `categories`.`id` ASC');
+                    return $categories->paginate($request->paginate ?? $categories->count());
+                }
+            } catch (\Throwable $e) {
+                // Fallback gracefully if order column is not yet present in database
+            }
+
             return $categories->latest('created_at')->paginate($request->paginate ?? $categories->count());
 
         } catch (Exception $e) {
