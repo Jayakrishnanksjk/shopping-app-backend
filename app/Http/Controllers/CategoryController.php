@@ -20,7 +20,7 @@ class CategoryController extends Controller
     public function __construct(CategoryRepository $repository)
     {
         $this->authorizeResource(Category::class, 'category', [
-            'except' => [ 'index', 'show' ],
+            'except' => [ 'index', 'show', 'reorder' ],
         ]);
 
         $this->repository = $repository;
@@ -170,15 +170,14 @@ class CategoryController extends Controller
 
     public function reorder(Request $request)
     {
-        $request->validate([
-            'category_ids' => 'nullable|array',
-            'category_ids.*' => 'exists:categories,id',
-            'categories' => 'nullable|array',
-        ]);
+        \Illuminate\Support\Facades\Log::info('Category reorder request:', $request->all());
 
         try {
-            if ($request->has('categories') && is_array($request->categories)) {
-                foreach ($request->categories as $index => $item) {
+            $categories = $request->input('categories');
+            $categoryIds = $request->input('category_ids');
+
+            if (!empty($categories) && is_array($categories)) {
+                foreach ($categories as $index => $item) {
                     $id = is_array($item) ? ($item['id'] ?? null) : $item;
                     $order = is_array($item) ? ($item['order'] ?? ($index + 1)) : ($index + 1);
                     $updateData = ['order' => $order];
@@ -189,8 +188,8 @@ class CategoryController extends Controller
                         Category::where('id', $id)->update($updateData);
                     }
                 }
-            } elseif ($request->has('category_ids') && is_array($request->category_ids)) {
-                foreach ($request->input('category_ids') as $index => $id) {
+            } elseif (!empty($categoryIds) && is_array($categoryIds)) {
+                foreach ($categoryIds as $index => $id) {
                     Category::where('id', $id)->update(['order' => $index + 1]);
                 }
             }
@@ -200,7 +199,11 @@ class CategoryController extends Controller
                 'message' => 'Categories reordered successfully'
             ]);
         } catch (Exception $e) {
-            throw new ExceptionHandler($e->getMessage(), 500);
+            \Illuminate\Support\Facades\Log::error('Category reorder error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
