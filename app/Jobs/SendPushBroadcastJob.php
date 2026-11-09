@@ -45,20 +45,10 @@ class SendPushBroadcastJob implements ShouldQueue
             'redirect_target' => (string) ($broadcast->redirect_target ?? ''),
         ];
 
-        // 1) Real push (works even when app is closed) via shared topic.
+        // Real push via shared FCM topic 'all_users' (single dispatch to all subscribed devices)
         $topicResult = $fcm->sendToTopic(FcmService::ALL_USERS_TOPIC, $broadcast->title, $broadcast->body, $imageUrl, $data);
 
-        // 2) Direct token multicast as backup (users who missed topic subscription).
-        $tokenResult = ['success' => 0, 'failure' => 0, 'mode' => $topicResult['mode'] ?? 'log'];
-        if ($fcm->isConfigured()) {
-            DeviceToken::where('is_active', true)->select('id', 'token')->chunkById(1000, function ($rows) use ($fcm, $broadcast, $imageUrl, $data, &$tokenResult) {
-                $r = $fcm->sendToTokens($rows->pluck('token')->all(), $broadcast->title, $broadcast->body, $imageUrl, $data);
-                $tokenResult['success'] += $r['success'];
-                $tokenResult['failure'] += $r['failure'];
-            });
-        }
-
-        // 3) In-app inbox for logged-in users (existing GET /api/notifications keeps working).
+        // In-app inbox for logged-in users (existing GET /api/notifications keeps working).
         $this->storeInboxCopies($broadcast);
 
         // 4) Advance schedule.
@@ -97,7 +87,6 @@ class SendPushBroadcastJob implements ShouldQueue
         Log::info('Push broadcast sent', [
             'id' => $broadcast->id,
             'topic' => $topicResult,
-            'tokens' => $tokenResult,
         ]);
     }
 

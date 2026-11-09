@@ -148,7 +148,7 @@ class PushBroadcastRepository extends BaseRepository
                 'redirect_target' => (string) ($broadcast->redirect_target ?? ''),
             ];
 
-            // 1) Topic push
+            // Send push via shared FCM topic 'all_users' (single dispatch to all subscribed devices)
             $topicResult = $fcm->sendToTopic(
                 \App\Services\FcmService::ALL_USERS_TOPIC,
                 $broadcast->title,
@@ -157,23 +157,10 @@ class PushBroadcastRepository extends BaseRepository
                 $data
             );
 
-            // 2) Direct token multicast backup
-            $tokenResult = ['success' => 0, 'failure' => 0, 'mode' => $topicResult['mode'] ?? 'log'];
-            $activeTokenCount = \App\Models\DeviceToken::where('is_active', true)->count();
-            if ($fcm->isConfigured()) {
-                \App\Models\DeviceToken::where('is_active', true)
-                    ->select('id', 'token')
-                    ->chunkById(1000, function ($rows) use ($fcm, $broadcast, $imageUrl, $data, &$tokenResult) {
-                        $r = $fcm->sendToTokens($rows->pluck('token')->all(), $broadcast->title, $broadcast->body, $imageUrl, $data);
-                        $tokenResult['success'] += $r['success'];
-                        $tokenResult['failure'] += $r['failure'];
-                    });
-            }
-
-            // 3) In-app inbox copies for all users
+            // In-app inbox copies for all users
             $this->storeInboxCopies($broadcast);
 
-            // 4) Update broadcast status
+            // Update broadcast status
             $broadcast->last_sent_at = now();
             $broadcast->sent_count = ($broadcast->sent_count ?? 0) + 1;
             if (!$broadcast->isRecurring()) {
@@ -211,14 +198,6 @@ class PushBroadcastRepository extends BaseRepository
                 $message = 'Firebase is not configured. Notification was saved to user inboxes only (no push sent to phones). Reason: ' . ($fcm->bootError() ?: 'Missing Firebase credentials.');
             } elseif ($topicSuccess) {
                 $message = "Notification sent successfully via FCM topic 'all_users'.";
-                if ($activeTokenCount > 0) {
-                    $message .= " Also sent to {$tokenResult['success']}/{$activeTokenCount} registered devices.";
-                    if ($tokenResult['failure'] > 0) {
-                        $message .= " ({$tokenResult['failure']} device(s) failed — expired tokens auto-deactivated.)";
-                    }
-                } else {
-                    $message .= " Note: 0 active device tokens registered. Ensure the mobile app calls POST /api/device-tokens on launch.";
-                }
                 $status = 'success';
             } else {
                 $status = 'error';
@@ -226,13 +205,11 @@ class PushBroadcastRepository extends BaseRepository
             }
 
             \Illuminate\Support\Facades\Log::info('Push broadcast sendNow result', [
-                'broadcast_id'      => $broadcast->id,
-                'status'            => $status,
-                'message'           => $message,
-                'topic_result'      => $topicResult,
-                'token_result'      => $tokenResult,
-                'active_tokens'     => $activeTokenCount,
-                'fcm_configured'    => $fcmConfigured,
+                'broadcast_id'   => $broadcast->id,
+                'status'         => $status,
+                'message'        => $message,
+                'topic_result'   => $topicResult,
+                'fcm_configured' => $fcmConfigured,
             ]);
 
             return response()->json([
@@ -241,10 +218,8 @@ class PushBroadcastRepository extends BaseRepository
                 'message' => $message,
                 'data'    => $broadcast->fresh(),
                 'debug'   => [
-                    'fcm_configured'       => $fcmConfigured,
-                    'topic_result'         => $topicResult,
-                    'token_result'         => $tokenResult,
-                    'active_device_tokens' => $activeTokenCount,
+                    'fcm_configured' => $fcmConfigured,
+                    'topic_result'   => $topicResult,
                 ],
             ]);
         } catch (Exception $e) {
