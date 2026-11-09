@@ -161,6 +161,10 @@ Route::get('front/review', 'App\Http\Controllers\ReviewController@frontIndex');
 // ContactUs
 Route::post('/contact-us', 'App\Http\Controllers\ContactUsController@contactUs');
 
+// Push-notification device tokens (app registers FCM token here on launch, guest or logged in)
+Route::post('device-tokens', 'App\Http\Controllers\DeviceTokenController@store');
+Route::delete('device-tokens', 'App\Http\Controllers\DeviceTokenController@destroy');
+
 Route::post('pearl-xp/product-updates', 'App\Http\Controllers\PearlXpController@store')->middleware('auth:sanctum');
 
 Route::group(['middleware' => ['localization','auth:sanctum']], function () {
@@ -189,10 +193,6 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   Route::get('notifications', 'App\Http\Controllers\NotificationController@index');
   Route::put('notifications/markAsRead', 'App\Http\Controllers\NotificationController@markAsRead');
   Route::delete('notifications/{id}', 'App\Http\Controllers\NotificationController@destroy');
-
-  // Push-notification device tokens (React Native app registers its FCM token here)
-  Route::post('device-tokens', 'App\Http\Controllers\DeviceTokenController@store');
-  Route::delete('device-tokens', 'App\Http\Controllers\DeviceTokenController@destroy');
 
   // ***********  Frontend   ***********
   Route::apiResource('cart', 'App\Http\Controllers\CartController');

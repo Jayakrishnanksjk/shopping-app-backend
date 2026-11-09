@@ -135,11 +135,154 @@ class PushBroadcastRepository extends BaseRepository
     {
         try {
             $broadcast = $this->model->findOrFail($id);
-            SendPushBroadcastJob::dispatch($broadcast->id, true);
-            return $broadcast->fresh();
+
+            // Run synchronously so we can capture FCM result and return feedback.
+            $fcm = app(\App\Services\FcmService::class);
+
+            $broadcast->loadMissing('image');
+            $imageUrl = $broadcast->resolved_image_url;
+            $data = [
+                'broadcast_id' => (string) $broadcast->id,
+                'type'          => 'broadcast',
+                'redirect_type'   => (string) ($broadcast->redirect_type ?? ''),
+                'redirect_target' => (string) ($broadcast->redirect_target ?? ''),
+            ];
+
+            // 1) Topic push
+            $topicResult = $fcm->sendToTopic(
+                \App\Services\FcmService::ALL_USERS_TOPIC,
+                $broadcast->title,
+                $broadcast->body,
+                $imageUrl,
+                $data
+            );
+
+            // 2) Direct token multicast backup
+            $tokenResult = ['success' => 0, 'failure' => 0, 'mode' => $topicResult['mode'] ?? 'log'];
+            $activeTokenCount = \App\Models\DeviceToken::where('is_active', true)->count();
+            if ($fcm->isConfigured()) {
+                \App\Models\DeviceToken::where('is_active', true)
+                    ->select('id', 'token')
+                    ->chunkById(1000, function ($rows) use ($fcm, $broadcast, $imageUrl, $data, &$tokenResult) {
+                        $r = $fcm->sendToTokens($rows->pluck('token')->all(), $broadcast->title, $broadcast->body, $imageUrl, $data);
+                        $tokenResult['success'] += $r['success'];
+                        $tokenResult['failure'] += $r['failure'];
+                    });
+            }
+
+            // 3) In-app inbox copies for all users
+            $this->storeInboxCopies($broadcast);
+
+            // 4) Update broadcast status
+            $broadcast->last_sent_at = now();
+            $broadcast->sent_count = ($broadcast->sent_count ?? 0) + 1;
+            if (!$broadcast->isRecurring()) {
+                $broadcast->status = PushBroadcast::STATUS_COMPLETED;
+                $broadcast->next_run_at = null;
+            } elseif ($broadcast->isRecurring() && $broadcast->status !== PushBroadcast::STATUS_PAUSED) {
+                $dailyTime = $broadcast->daily_time
+                    ? \Carbon\Carbon::parse($broadcast->daily_time)->format('H:i:s')
+                    : null;
+                $next = PushBroadcast::computeNextRunAt([
+                    'schedule_type' => $broadcast->schedule_type,
+                    'daily_time' => $dailyTime,
+                    'interval_minutes' => $broadcast->interval_minutes,
+                    'starts_at' => $broadcast->starts_at,
+                    'ends_at' => $broadcast->ends_at,
+                    'last_sent_at' => $broadcast->last_sent_at,
+                ], now());
+                if ($next) {
+                    $broadcast->next_run_at = $next;
+                    $broadcast->status = PushBroadcast::STATUS_ACTIVE;
+                } else {
+                    $broadcast->next_run_at = null;
+                    $broadcast->status = PushBroadcast::STATUS_COMPLETED;
+                }
+            }
+            $broadcast->save();
+
+            // Determine overall success/failure
+            $topicSuccess = ($topicResult['success'] ?? 0) > 0;
+            $fcmConfigured = $fcm->isConfigured();
+
+            // Build detailed status message
+            if (!$fcmConfigured) {
+                $status = 'warning';
+                $message = 'Firebase is not configured. Notification was saved to user inboxes only (no push sent to phones). Reason: ' . ($fcm->bootError() ?: 'Missing Firebase credentials.');
+            } elseif ($topicSuccess) {
+                $message = "Notification sent successfully via FCM topic 'all_users'.";
+                if ($activeTokenCount > 0) {
+                    $message .= " Also sent to {$tokenResult['success']}/{$activeTokenCount} registered devices.";
+                    if ($tokenResult['failure'] > 0) {
+                        $message .= " ({$tokenResult['failure']} device(s) failed — expired tokens auto-deactivated.)";
+                    }
+                } else {
+                    $message .= " Note: 0 active device tokens registered. Ensure the mobile app calls POST /api/device-tokens on launch.";
+                }
+                $status = 'success';
+            } else {
+                $status = 'error';
+                $message = 'FCM topic send FAILED. Reason: ' . ($topicResult['reason'] ?? 'Unknown error') . '. Notification was saved to user inboxes only.';
+            }
+
+            \Illuminate\Support\Facades\Log::info('Push broadcast sendNow result', [
+                'broadcast_id'      => $broadcast->id,
+                'status'            => $status,
+                'message'           => $message,
+                'topic_result'      => $topicResult,
+                'token_result'      => $tokenResult,
+                'active_tokens'     => $activeTokenCount,
+                'fcm_configured'    => $fcmConfigured,
+            ]);
+
+            return response()->json([
+                'success' => $status !== 'error',
+                'status'  => $status,
+                'message' => $message,
+                'data'    => $broadcast->fresh(),
+                'debug'   => [
+                    'fcm_configured'       => $fcmConfigured,
+                    'topic_result'         => $topicResult,
+                    'token_result'         => $tokenResult,
+                    'active_device_tokens' => $activeTokenCount,
+                ],
+            ]);
         } catch (Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Push broadcast sendNow failed', [
+                'broadcast_id' => $id,
+                'error'        => $e->getMessage(),
+                'trace'        => $e->getTraceAsString(),
+            ]);
             throw new ExceptionHandler($e->getMessage(), $e->getCode());
         }
+    }
+
+    /** Bulk-insert database notifications in chunks (used by sendNow and the job). */
+    protected function storeInboxCopies(PushBroadcast $broadcast): void
+    {
+        $payload = [
+            'title' => $broadcast->title,
+            'message' => $broadcast->body,
+            'image' => $broadcast->resolved_image_url,
+            'type' => 'broadcast',
+            'broadcast_id' => $broadcast->id,
+            'redirect_type' => $broadcast->redirect_type,
+            'redirect_target' => $broadcast->redirect_target,
+        ];
+        \App\Models\User::select('id')->chunkById(500, function ($users) use ($payload) {
+            $now = now()->toDateTimeString();
+            $rows = $users->map(fn ($u) => [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'type' => \App\Notifications\BroadcastPushNotification::class,
+                'notifiable_type' => \App\Models\User::class,
+                'notifiable_id' => $u->id,
+                'data' => json_encode($payload),
+                'read_at' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all();
+            DB::table('notifications')->insert($rows);
+        });
     }
 
     public function pause($id)
