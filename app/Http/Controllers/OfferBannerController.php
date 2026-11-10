@@ -89,16 +89,27 @@ class OfferBannerController extends Controller
         $storeId = $request->store_id ?: $request->header('X-Store-Id');
         if ($storeId) {
             $offerBanners = $offerBanners->where(function ($q) use ($storeId) {
-                $q->where('store_id', (int) $storeId)->orWhereNull('store_id');
+                $id = (int) $storeId;
+                if ($id === 1 || $id === 3) {
+                    $q->whereIn('store_id', [1, 3])->orWhereNull('store_id');
+                } else {
+                    $q->where('store_id', $id)->orWhereNull('store_id');
+                }
             });
         }
 
         if ($request->store_slug) {
             $slug = $request->store_slug;
             $offerBanners = $offerBanners->where(function ($q) use ($slug) {
-                $q->whereHas('store', function (Builder $stores) use ($slug) {
-                    $stores->where('slug', $slug);
-                })->orWhereNull('store_id');
+                if ($slug === 'grocery' || $slug === 'main-store' || $slug === 'foodzone') {
+                    $q->whereHas('store', function (Builder $stores) {
+                        $stores->whereIn('id', [1, 3]);
+                    })->orWhereNull('store_id');
+                } else {
+                    $q->whereHas('store', function (Builder $stores) use ($slug) {
+                        $stores->where('slug', $slug);
+                    })->orWhereNull('store_id');
+                }
             });
         }
 
