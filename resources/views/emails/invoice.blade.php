@@ -57,19 +57,32 @@
                     <p>Contact: ({{$orders->shipping_address?->country_code}}) {{$orders->shipping_address?->phone}}</p>
                 </div>
                 @php
-                    // 1. Get coordinates from shipping_address or order root
-                    $lat = $orders->shipping_address?->lat 
-                        ?? $orders->shipping_address?->latitude 
+                    // 1. Retrieve coordinates from shipping address or root order
+                    $lat = $orders->shipping_address?->latitude 
+                        ?? $orders->shipping_address?->lat 
                         ?? $orders->latitude 
                         ?? null;
-                    $lng = $orders->shipping_address?->lng 
-                        ?? $orders->shipping_address?->longitude 
+                    $lng = $orders->shipping_address?->longitude 
+                        ?? $orders->shipping_address?->lng 
                         ?? $orders->longitude 
                         ?? null;
 
-                    // 2. Build Google Maps URL if coordinates exist, otherwise fallback to address string, then order link
-                    if ($lat && $lng) {
-                        $mapUrl = "https://www.google.com/maps/search/?api=1&query={$lat},{$lng}";
+                    // 2. Fallback check for comma-separated coordinate strings ("lat,lng")
+                    if (!$lat || !$lng) {
+                        $coordStr = $orders->shipping_address?->screen_geo_coordinates 
+                            ?? $orders->shipping_address?->geo_coordinates 
+                            ?? $orders->screen_geo_coordinates 
+                            ?? null;
+                        if ($coordStr && str_contains($coordStr, ',')) {
+                            [$lat, $lng] = explode(',', $coordStr);
+                            $lat = trim($lat);
+                            $lng = trim($lng);
+                        }
+                    }
+
+                    // 3. Generate Turn-by-Turn Navigation URL (or generic search fallback)
+                    if (!empty($lat) && !empty($lng)) {
+                        $mapUrl = "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}";
                     } else {
                         $shippingAddressString = implode(', ', array_filter([
                             $orders->shipping_address?->street,
