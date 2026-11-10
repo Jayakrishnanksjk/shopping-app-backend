@@ -201,7 +201,8 @@ class OrderRepository extends BaseRepository
             $items = $this->calculate($request);
 
             if ($request->coupon) {
-                $coupon = Helpers::getCoupon($request->coupon);
+                $storeId = Helpers::getRequestedStoreId($request) ?: Helpers::getStoreIdByProducts($request->products);
+                $coupon = Helpers::getCoupon($request->coupon, $storeId);
                 $amount = Helpers::getTotalAmount($request->products);
                 if ($this->isValidCoupon($coupon, $amount, $request->consumer_id)) {
                     $request->merge(['coupon_id' => $coupon->id]);

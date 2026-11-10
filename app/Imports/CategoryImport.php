@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Category;
+use App\Helpers\Helpers;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\SkipsOnError;
@@ -56,13 +57,17 @@ class CategoryImport implements ToModel, WithHeadingRow, WithValidation, SkipsOn
     */
     public function model(array $row)
     {
+        $storeId = Helpers::getRequestedStoreId();
+        $storeId = ($storeId && $storeId > 0) ? (int) $storeId : null;
+
         $category = new Category([
             'name' =>  $row['name'],
             'description' => $row['description'],
             'type' => $row['type'],
             'status' => $row['status'],
             'commission_rate' => $row['commission_rate'],
-            'parent_id' => $row['parent_id']
+            'parent_id' => $row['parent_id'],
+            'store_id' => $storeId
         ]);
 
         if (isset($row['category_image_url'])) {

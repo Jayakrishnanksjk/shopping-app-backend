@@ -18,7 +18,11 @@ trait CouponTrait
   public function isValidCoupon($coupon, $amount, $consumer)
   {
     if (Helpers::couponIsEnable()) {
-      if ($coupon && $this->isValidSpend($coupon, $amount)) {
+      if (!$coupon) {
+        throw new Exception('The coupon code is not valid for this store.', 422);
+      }
+
+      if ($this->isValidSpend($coupon, $amount)) {
         if ($this->isCouponUsable($coupon, $consumer) && $this->isNotExpired($coupon)) {
           return true;
         }
@@ -83,6 +87,14 @@ trait CouponTrait
 
   public function isIncludeOrExclude($coupon, $product)
   {
+    // A store coupon must never discount another store's products.
+    if ($coupon->store_id && isset($product['product_id'])) {
+      $productStoreId = Helpers::getStoreIdByProductId($product['product_id']);
+      if ($productStoreId && (int) $productStoreId !== (int) $coupon->store_id) {
+        return false;
+      }
+    }
+
     if ($coupon->is_apply_all) {
       if (isset($coupon->exclude_products)) {
         if (in_array($product['product_id'], array_column($coupon->exclude_products->toArray(), 'id'))) {

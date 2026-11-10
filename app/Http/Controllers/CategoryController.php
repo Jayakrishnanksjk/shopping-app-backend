@@ -7,7 +7,6 @@ use App\Models\Category;
 use App\Enums\RoleEnum;
 use App\Helpers\Helpers;
 use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\Builder;
 use App\GraphQL\Exceptions\ExceptionHandler;
 use App\Http\Requests\CreateCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
@@ -45,7 +44,17 @@ class CategoryController extends Controller
     {
         try {
 
-            $categories = $this->repository->whereNull('parent_id')->with('subcategories', 'parent');
+            $storeId = Helpers::getRequestedStoreId($request);
+
+            $categories = $this->repository->whereNull('parent_id')->with([
+                'subcategories' => function ($query) use ($storeId) {
+                    if ($storeId) {
+                        Helpers::scopeToStore($query, $storeId);
+                    }
+                },
+                'parent',
+            ]);
+
             $categories = $this->filter($categories, $request);
             if ($request->field && $request->sort) {
                 return $categories->paginate($request->paginate ?? $categories->count());
@@ -177,6 +186,10 @@ class CategoryController extends Controller
         \Illuminate\Support\Facades\Log::info('Category reorder request:', $request->all());
 
         try {
+            $vendorStoreId = (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR)
+                ? Helpers::getCurrentVendorStoreId()
+                : null;
+
             $categories = $request->input('categories');
             $categoryIds = $request->input('category_ids');
 
@@ -189,12 +202,20 @@ class CategoryController extends Controller
                         $updateData['parent_id'] = $item['parent_id'];
                     }
                     if ($id) {
-                        Category::where('id', $id)->update($updateData);
+                        $query = Category::where('id', $id);
+                        if ($vendorStoreId) {
+                            $query->where('store_id', $vendorStoreId);
+                        }
+                        $query->update($updateData);
                     }
                 }
             } elseif (!empty($categoryIds) && is_array($categoryIds)) {
                 foreach ($categoryIds as $index => $id) {
-                    Category::where('id', $id)->update(['order' => $index + 1]);
+                    $query = Category::where('id', $id);
+                    if ($vendorStoreId) {
+                        $query->where('store_id', $vendorStoreId);
+                    }
+                    $query->update(['order' => $index + 1]);
                 }
             }
 
@@ -247,25 +268,18 @@ class CategoryController extends Controller
 
     public function filter($categories, $request)
     {
-        if (Helpers::isUserLogin()) {
-            $roleName = Helpers::getCurrentRoleName();
-            if ($roleName == RoleEnum::VENDOR) {
-                $vendorStoreId = Helpers::getCurrentVendorStoreId();
-                if ($vendorStoreId) {
-                    $categories = $categories->where('store_id', $vendorStoreId);
-                }
-            }
+        $storeId = Helpers::getRequestedStoreId($request);
+        if ($storeId) {
+            $categories = Helpers::scopeToStore($categories, $storeId);
         }
 
         if ($request->type) {
-            $categories = $this->repository->whereNull('parent_id')
-                ->where('type', 'like', $request->type)
-                ->with(['subcategories']);
+            $categories = $categories->where('type', 'like', $request->type);
         }
 
         if ($request->ids) {
-            $ids = explode(',',$request->ids);
-            $categories = $categories->findWhereIn('id',$ids);
+            $ids = explode(',', $request->ids);
+            $categories = $categories->whereIn('id', $ids);
         }
 
         if ($request->field && $request->sort) {
@@ -274,64 +288,6 @@ class CategoryController extends Controller
 
         if (isset($request->status)) {
             $categories = $categories->where('status', $request->status);
-        }
-
-        $store_id = $request->store_id ?: $request->header('X-Store-Id');
-        if ($store_id) {
-            $categories = $categories->where(function ($q) use ($store_id) {
-                if ((int)$store_id === 3 || (int)$store_id === 1) {
-                    $q->where('store_id', $store_id)
-                      ->orWhereNull('store_id')
-                      ->orWhereHas('products', function (Builder $products) use ($store_id) {
-                          $products->where('store_id', $store_id)->orWhereNull('store_id');
-                      })
-                      ->orWhereHas('subcategories.products', function (Builder $products) use ($store_id) {
-                          $products->where('store_id', $store_id)->orWhereNull('store_id');
-                      });
-                } else {
-                    $q->where('store_id', $store_id)
-                      ->orWhereHas('products', function (Builder $products) use ($store_id) {
-                          $products->where('store_id', $store_id);
-                      })
-                      ->orWhereHas('subcategories.products', function (Builder $products) use ($store_id) {
-                          $products->where('store_id', $store_id);
-                      });
-                }
-            });
-        }
-
-        if ($request->store_slug) {
-            $store_slug = $request->store_slug;
-            $categories = $categories->where(function ($q) use ($store_slug) {
-                if ($store_slug === 'grocery' || $store_slug === 'main-store') {
-                    $q->whereHas('store', function (Builder $stores) use ($store_slug) {
-                        $stores->where('slug', $store_slug);
-                    })->orWhereNull('store_id')
-                    ->orWhereHas('products', function (Builder $products) use ($store_slug) {
-                        $products->whereHas('store', function (Builder $stores) use ($store_slug) {
-                            $stores->where('slug', $store_slug);
-                        })->orWhereNull('store_id');
-                    })
-                    ->orWhereHas('subcategories.products', function (Builder $products) use ($store_slug) {
-                        $products->whereHas('store', function (Builder $stores) use ($store_slug) {
-                            $stores->where('slug', $store_slug);
-                        })->orWhereNull('store_id');
-                    });
-                } else {
-                    $q->whereHas('store', function (Builder $stores) use ($store_slug) {
-                        $stores->where('slug', $store_slug);
-                    })->orWhereHas('products', function (Builder $products) use ($store_slug) {
-                        $products->whereHas('store', function (Builder $stores) use ($store_slug) {
-                            $stores->where('slug', $store_slug);
-                        });
-                    })
-                    ->orWhereHas('subcategories.products', function (Builder $products) use ($store_slug) {
-                        $products->whereHas('store', function (Builder $stores) use ($store_slug) {
-                            $stores->where('slug', $store_slug);
-                        });
-                    });
-                }
-            });
         }
 
         return $categories;

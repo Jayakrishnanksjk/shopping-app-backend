@@ -31,7 +31,7 @@ class OfferBannerPolicy
     public function update(User $user, OfferBanner $offerBanner)
     {
         if ($user->can('offer_banner.edit') &&
-            ($user->role->name != RoleEnum::VENDOR || $user->id == $offerBanner->created_by_id)) {
+            ($user->role->name != RoleEnum::VENDOR || $user->store?->id == $offerBanner->store_id)) {
             return true;
         }
     }
@@ -39,7 +39,7 @@ class OfferBannerPolicy
     public function delete(User $user, OfferBanner $offerBanner)
     {
         if ($user->can('offer_banner.destroy') &&
-            ($user->role->name != RoleEnum::VENDOR || $user->id == $offerBanner->created_by_id)) {
+            ($user->role->name != RoleEnum::VENDOR || $user->store?->id == $offerBanner->store_id)) {
             return true;
         }
     }

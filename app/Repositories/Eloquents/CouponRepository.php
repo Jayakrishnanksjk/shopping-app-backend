@@ -4,6 +4,8 @@ namespace App\Repositories\Eloquents;
 
 use Exception;
 use App\Models\Coupon;
+use App\Enums\RoleEnum;
+use App\Helpers\Helpers;
 use Illuminate\Support\Facades\DB;
 use App\GraphQL\Exceptions\ExceptionHandler;
 use Prettus\Repository\Eloquent\BaseRepository;
@@ -50,6 +52,12 @@ class CouponRepository extends BaseRepository
         DB::beginTransaction();
         try {
 
+            $store_id = Helpers::getRequestedStoreId($request);
+            $store_id = ($store_id && $store_id > 0) ? (int) $store_id : null;
+            if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
+                $store_id = Helpers::getCurrentVendorStoreId() ?: $store_id;
+            }
+
             $coupon =  $this->model->create([
                 'title' => $request->title,
                 'description' => $request->description,
@@ -66,6 +74,7 @@ class CouponRepository extends BaseRepository
                 'is_first_order'=> $request->is_first_order,
                 'start_date' => $request->start_date,
                 'end_date' => $request->end_date,
+                'store_id' => $store_id,
             ]);
 
             if (isset($request['products'])){
@@ -94,7 +103,17 @@ class CouponRepository extends BaseRepository
         try {
 
             $coupon = $this->model->findOrFail($id);
-            $coupon->update($request);
+
+            $data = is_object($request) ? $request->all() : $request;
+            if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
+                $data['store_id'] = Helpers::getCurrentVendorStoreId() ?: ($coupon->store_id ?: null);
+            } elseif (array_key_exists('store_id', $data)) {
+                $data['store_id'] = ($data['store_id'] !== '' && $data['store_id'] !== null)
+                    ? (int) $data['store_id']
+                    : null;
+            }
+
+            $coupon->update($data);
 
             if (!$request['is_apply_all']) {
                 $coupon->exclude_products()->sync([]);
@@ -141,6 +160,10 @@ class CouponRepository extends BaseRepository
         try {
 
             $coupon = $this->model->findOrFail($id);
+            if (!Helpers::canManageRecord($coupon)) {
+                throw new Exception('You are not allowed to manage records of another store.', 403);
+            }
+
             $coupon->update(['status' => $status]);
 
             return $coupon;
@@ -155,7 +178,24 @@ class CouponRepository extends BaseRepository
     {
         try {
 
-            return $this->model->whereIn('id', $ids)->delete();
+            $coupons = $this->model->whereIn('id', $ids);
+
+            if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
+                $storeId = Helpers::getCurrentVendorStoreId();
+                if (!$storeId) {
+                    return 0;
+                }
+
+                $coupons = $coupons->where(function ($query) use ($storeId) {
+                    $query->where('store_id', $storeId)
+                        ->orWhere(function ($query) {
+                            $query->whereNull('store_id')
+                                ->where('created_by_id', Helpers::getCurrentUserId());
+                        });
+                });
+            }
+
+            return $coupons->delete();
 
         } catch (Exception $e){
 

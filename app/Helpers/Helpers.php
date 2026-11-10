@@ -56,6 +56,98 @@ class Helpers
     }
   }
 
+  /**
+   * Resolve the store context for the current request.
+   *
+   * Priority:
+   * 1. Logged-in vendor -> the vendor's own store
+   * 2. Explicit store_id request input / X-Store-Id header
+   * 3. store_slug request input / X-Store-Slug header
+   */
+  public static function getRequestedStoreId($request = null)
+  {
+    if (self::isUserLogin() && self::getCurrentRoleName() == RoleEnum::VENDOR) {
+      $vendorStoreId = self::getCurrentVendorStoreId();
+      if ($vendorStoreId) {
+        return (int) $vendorStoreId;
+      }
+    }
+
+    $request = $request ?: request();
+    if (!$request) {
+      return null;
+    }
+
+    $storeId = $request->input('store_id') ?: $request->header('X-Store-Id');
+    if ($storeId !== null && $storeId !== '') {
+      return (int) $storeId;
+    }
+
+    $storeSlug = $request->input('store_slug') ?: $request->header('X-Store-Slug');
+    if ($storeSlug) {
+      $resolved = Store::where('slug', $storeSlug)->whereNull('deleted_at')->value('id');
+
+      // Unknown store slug must not fall back to "all stores".
+      return $resolved ?: -1;
+    }
+
+    return null;
+  }
+
+  /**
+   * Whether the given store is the legacy/main store which is allowed to
+   * include records that are not assigned to any store (store_id = NULL).
+   */
+  public static function isMainStoreScope($storeId = null, $storeSlug = null)
+  {
+    if (!$storeSlug && $storeId) {
+      $storeSlug = Store::whereKey($storeId)->value('slug');
+    }
+
+    if ($storeSlug && in_array($storeSlug, ['main-store', 'grocery'], true)) {
+      return true;
+    }
+
+    // Keep parity with the existing product/category behaviour for legacy
+    // main stores which may have been re-created under a different slug.
+    return $storeId && in_array((int) $storeId, [1, 3], true);
+  }
+
+  /**
+   * Apply a store scope to a query builder.
+   */
+  public static function scopeToStore($query, $storeId, $includeMainStoreGlobals = true)
+  {
+    if (!$storeId) {
+      return $query;
+    }
+
+    return $query->where(function ($q) use ($storeId, $includeMainStoreGlobals) {
+      $q->where('store_id', (int) $storeId);
+      if ($includeMainStoreGlobals && self::isMainStoreScope($storeId)) {
+        $q->orWhereNull('store_id');
+      }
+    });
+  }
+
+  /**
+   * Whether the current user may manage (status/delete) the given record.
+   * Admins may manage everything; vendors only their own store's records.
+   */
+  public static function canManageRecord($record)
+  {
+    if (!self::isUserLogin() || self::getCurrentRoleName() != RoleEnum::VENDOR) {
+      return true;
+    }
+
+    $storeId = self::getCurrentVendorStoreId();
+    if ($storeId && (int) $record->store_id === (int) $storeId) {
+      return true;
+    }
+
+    return !$record->store_id && $record->created_by_id == self::getCurrentUserId();
+  }
+
   // Attachments
   public static function createAttachment()
   {
@@ -107,12 +199,19 @@ class Helpers
     return User::find($user_id)?->role?->name;
   }
 
-  public static function getCoupon($data)
+  public static function getCoupon($data, $storeId = null)
   {
-    return Coupon::where([['code', 'LIKE', '%'.$data.'%'],['status', true]])
-	  ->orWhere('id', 'LIKE', '%'.$data.'%')
-      ->with(['products', 'exclude_products'])
-	  ->first();
+    $coupon = Coupon::where('status', true)
+      ->where(function ($query) use ($data) {
+        $query->where('code', 'LIKE', '%'.$data.'%')
+          ->orWhere('id', 'LIKE', '%'.$data.'%');
+      });
+
+    if ($storeId) {
+      $coupon = self::scopeToStore($coupon, $storeId);
+    }
+
+    return $coupon->with(['products', 'exclude_products'])->first();
   }
 
   public static function getDefaultCurrencySymbol()
@@ -141,7 +240,25 @@ class Helpers
 
   public static function getStoreIdByProductId($product_id)
   {
-    return Product::where('id',$product_id)->pluck('store_id')->first();
+    static $cache = [];
+
+    if (!array_key_exists($product_id, $cache)) {
+      $cache[$product_id] = Product::where('id', $product_id)->value('store_id');
+    }
+
+    return $cache[$product_id];
+  }
+
+  public static function getStoreIdByProducts($products)
+  {
+    if (empty($products) || !is_array($products)) {
+      return null;
+    }
+
+    $firstProduct = reset($products);
+    $productId = is_array($firstProduct) ? ($firstProduct['product_id'] ?? null) : null;
+
+    return $productId ? self::getStoreIdByProductId($productId) : null;
   }
 
   public static function getProductByStoreSlug($store_slug)

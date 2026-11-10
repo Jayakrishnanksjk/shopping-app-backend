@@ -18,6 +18,8 @@ type Coupon {
     end_date: String
     created_at: DateTimeUtc
     updated_at: DateTimeUtc
+    store_id: Int
+    store: Store
     products: [Product]
     exclude_products: [Product]
 }
@@ -39,6 +41,7 @@ input CreateCouponInput {
     is_apply_all: Int
     start_date: String
     end_date: String
+    store_id: Int
     products: [Int]
     exclude_products: [Int]
 }
@@ -61,6 +64,7 @@ input UpdateCouponInput {
     is_apply_all: Int
     start_date: String
     end_date: String
+    store_id: Int
     products: [Int]
     exclude_products: [Int]
 }
@@ -106,6 +110,8 @@ extend type Query {
         sort: String
         field: String
         status: Int
+        store_id: Int
+        store_slug: String
         paginate: Int
     ): [Coupon!]!
     @paginate(resolver: "App\\GraphQL\\Queries\\CouponQuery@index" defaultCount:15)

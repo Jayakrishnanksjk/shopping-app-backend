@@ -67,7 +67,8 @@ trait CheckoutTrait
       $coupon = null;
       $totalEligibleAmount = 0;
       if (isset($request->coupon)) {
-          $coupon = Helpers::getCoupon($request->coupon);
+          $storeId = Helpers::getRequestedStoreId($request) ?: Helpers::getStoreIdByProducts($request->products);
+          $coupon = Helpers::getCoupon($request->coupon, $storeId);
           if ($this->isValidCoupon($coupon, $amount, $this->getConsumerId($request))) {
               foreach ($request->products as $prod) {
                   if ($this->isIncludeOrExclude($coupon, $prod)) {

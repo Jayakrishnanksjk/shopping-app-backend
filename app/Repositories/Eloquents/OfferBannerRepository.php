@@ -44,10 +44,10 @@ class OfferBannerRepository extends BaseRepository
     {
         DB::beginTransaction();
         try {
-            $rawStoreId = $request->store_id ?: $request->header('X-Store-Id');
-            $store_id = ($rawStoreId !== null && $rawStoreId !== '') ? (int) $rawStoreId : null;
+            $store_id = Helpers::getRequestedStoreId($request);
+            $store_id = ($store_id && $store_id > 0) ? (int) $store_id : null;
             if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
-                $store_id = Helpers::getCurrentVendorStoreId() ?? $store_id;
+                $store_id = Helpers::getCurrentVendorStoreId() ?: $store_id;
             }
 
             $offerBanner = $this->model->create([
@@ -72,14 +72,14 @@ class OfferBannerRepository extends BaseRepository
         DB::beginTransaction();
         try {
             $offerBanner = $this->model->findOrFail($id);
-            if (is_object($request)) {
-                $data = $request->all();
-                if ($request->has('store_id')) {
-                    $data['store_id'] = ($request->store_id !== '' && $request->store_id !== null) ? (int) $request->store_id : null;
-                }
-            } else {
-                $data = $request;
+            $data = is_object($request) ? $request->all() : $request;
+
+            if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
+                $data['store_id'] = Helpers::getCurrentVendorStoreId() ?: ($offerBanner->store_id ?: null);
+            } elseif (array_key_exists('store_id', $data)) {
+                $data['store_id'] = ($data['store_id'] !== '' && $data['store_id'] !== null) ? (int) $data['store_id'] : null;
             }
+
             $offerBanner->update($data);
 
             DB::commit();
@@ -103,6 +103,10 @@ class OfferBannerRepository extends BaseRepository
     {
         try {
             $offerBanner = $this->model->findOrFail($id);
+            if (!Helpers::canManageRecord($offerBanner)) {
+                throw new Exception('You are not allowed to manage records of another store.', 403);
+            }
+
             $offerBanner->update(['status' => $status]);
 
             return $offerBanner;
@@ -114,7 +118,18 @@ class OfferBannerRepository extends BaseRepository
     public function deleteAll($ids)
     {
         try {
-            return $this->model->whereIn('id', $ids)->delete();
+            $offerBanners = $this->model->whereIn('id', $ids);
+
+            if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
+                $storeId = Helpers::getCurrentVendorStoreId();
+                if (!$storeId) {
+                    return 0;
+                }
+
+                $offerBanners = $offerBanners->where('store_id', $storeId);
+            }
+
+            return $offerBanners->delete();
         } catch (Exception $e) {
             throw new ExceptionHandler($e->getMessage(), $e->getCode());
         }

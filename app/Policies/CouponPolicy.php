@@ -57,7 +57,8 @@ class CouponPolicy
     public function update(User $user, Coupon $coupon)
     {
         if ($user->can('coupon.edit') &&
-            ($user->role->name != RoleEnum::VENDOR || $user->id == $coupon->created_by_id)) {
+            ($user->role->name != RoleEnum::VENDOR || $user->store?->id == $coupon->store_id ||
+                (! $coupon->store_id && $user->id == $coupon->created_by_id))) {
             return true;
         }
     }
@@ -72,7 +73,8 @@ class CouponPolicy
     public function delete(User $user, Coupon $coupon)
     {
         if ($user->can('coupon.destroy') &&
-            ($user->role->name != RoleEnum::VENDOR || $user->id == $coupon->created_by_id)) {
+            ($user->role->name != RoleEnum::VENDOR || $user->store?->id == $coupon->store_id ||
+                (! $coupon->store_id && $user->id == $coupon->created_by_id))) {
             return true;
         }
     }

@@ -57,7 +57,8 @@ class CategoryPolicy
     public function update(User $user, Category $category)
     {
         if ($user->can('category.edit') &&
-            ($user->role->name != RoleEnum::VENDOR || $user->id == $category->created_by_id)) {
+            ($user->role->name != RoleEnum::VENDOR || $user->store?->id == $category->store_id ||
+                (! $category->store_id && $user->id == $category->created_by_id))) {
             return true;
         }
     }
@@ -72,7 +73,8 @@ class CategoryPolicy
     public function delete(User $user, Category $category)
     {
         if ($user->can('category.destroy') &&
-            ($user->role->name != RoleEnum::VENDOR || $user->id == $category->created_by_id)) {
+            ($user->role->name != RoleEnum::VENDOR || $user->store?->id == $category->store_id ||
+                (! $category->store_id && $user->id == $category->created_by_id))) {
             return true;
         }
     }

@@ -37,6 +37,7 @@ class Coupon extends Model
         'is_first_order',
         'usage_per_coupon',
         'usage_per_customer',
+        'store_id',
     ];
 
     protected $casts = [
@@ -46,6 +47,7 @@ class Coupon extends Model
         'is_first_order' => 'integer',
         'is_unlimited' => 'integer',
         'status' => 'integer',
+        'store_id' => 'integer',
     ];
 
     public static function boot()
@@ -53,6 +55,17 @@ class Coupon extends Model
         parent::boot();
         static::saving(function ($model) {
             $model->created_by_id = Helpers::getCurrentUserId();
+
+            if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == \App\Enums\RoleEnum::VENDOR) {
+                $model->store_id = Helpers::getCurrentVendorStoreId() ?: $model->store_id;
+            }
+
+            if (!$model->store_id && request()) {
+                $headerStoreId = request()->header('X-Store-Id') ?: request()->input('store_id');
+                if ($headerStoreId) {
+                    $model->store_id = (int) $headerStoreId;
+                }
+            }
         });
     }
 
@@ -70,6 +83,14 @@ class Coupon extends Model
     public function created_by(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * @return BelongsTo
+     */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class, 'store_id');
     }
 
     /**

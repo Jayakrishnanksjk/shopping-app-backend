@@ -41,6 +41,7 @@ class UpdateCouponRequest extends FormRequest
             'is_expired' => ['min:0','max:1'],
             'is_first_order' => ['min:0','max:1'],
             'is_apply_all' => ['required','min:0','max:1'],
+            'store_id' => ['nullable','exists:stores,id,deleted_at,NULL'],
             'exclude_products' => ['nullable','array','exists:products,id,deleted_at,NULL'],
             'start_date' => ['nullable','date'],
             'end_date' => ['nullable','date', 'after:start_date'],

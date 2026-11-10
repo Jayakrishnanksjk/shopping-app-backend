@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use Exception;
 use App\Models\Coupon;
-use App\Enums\RoleEnum;
 use App\Helpers\Helpers;
 use Illuminate\Http\Request;
 use App\Http\Requests\CreateCouponRequest;
@@ -77,11 +76,9 @@ class CouponController extends Controller
 
     public function filter($coupons, $request)
     {
-        if (Helpers::isUserLogin()) {
-            $roleName = Helpers::getCurrentRoleName();
-            if ($roleName == RoleEnum::VENDOR) {
-                $coupons = $coupons->where('created_by_id', Helpers::getCurrentUserId());
-            }
+        $storeId = Helpers::getRequestedStoreId($request);
+        if ($storeId) {
+            $coupons = Helpers::scopeToStore($coupons, $storeId);
         }
 
         if ($request->field && $request->sort) {

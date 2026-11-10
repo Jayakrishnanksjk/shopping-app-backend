@@ -55,10 +55,10 @@ class CategoryRepository extends BaseRepository
         DB::beginTransaction();
         try {
 
-            $rawStoreId = $request->store_id ?: $request->header('X-Store-Id');
-            $store_id = ($rawStoreId !== null && $rawStoreId !== '') ? (int) $rawStoreId : null;
+            $store_id = Helpers::getRequestedStoreId($request);
+            $store_id = ($store_id && $store_id > 0) ? (int) $store_id : null;
             if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
-                $store_id = Helpers::getCurrentVendorStoreId() ?? $store_id;
+                $store_id = Helpers::getCurrentVendorStoreId() ?: $store_id;
             }
 
             $category =  $this->model->create([
@@ -92,14 +92,14 @@ class CategoryRepository extends BaseRepository
         try {
 
             $category = $this->model->findOrFail($id);
-            if (is_object($request)) {
-                $data = $request->all();
-                if ($request->has('store_id')) {
-                    $data['store_id'] = ($request->store_id !== '' && $request->store_id !== null) ? (int) $request->store_id : null;
-                }
-            } else {
-                $data = $request;
+            $data = is_object($request) ? $request->all() : $request;
+
+            if (Helpers::isUserLogin() && Helpers::getCurrentRoleName() == RoleEnum::VENDOR) {
+                $data['store_id'] = Helpers::getCurrentVendorStoreId() ?: ($category->store_id ?: null);
+            } elseif (array_key_exists('store_id', $data)) {
+                $data['store_id'] = ($data['store_id'] !== '' && $data['store_id'] !== null) ? (int) $data['store_id'] : null;
             }
+
             $category->update($data);
 
             if (isset($request['category_image_id'])) {
@@ -128,6 +128,10 @@ class CategoryRepository extends BaseRepository
         try {
 
             $category = $this->model->findOrFail($id);
+            if (!Helpers::canManageRecord($category)) {
+                throw new Exception('You are not allowed to manage records of another store.', 403);
+            }
+
             $category->update(['status' => $status]);
 
             return $category;

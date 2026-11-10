@@ -40,6 +40,7 @@ class CreateCouponRequest extends FormRequest
             'is_expired' => ['required','min:0','max:1'],
             'is_first_order' => ['min:0','max:1'],
             'is_apply_all' => ['required','min:0','max:1'],
+            'store_id' => ['nullable','exists:stores,id,deleted_at,NULL'],
             'exclude_products.*' => ['nullable','exists:products,id,deleted_at,NULL'],
             'products' => ['required_if:is_apply_all,==,0','exists:products,id,deleted_at,NULL'],
             'start_date' => ['nullable','date'],
