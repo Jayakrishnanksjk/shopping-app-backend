@@ -52,6 +52,20 @@ class Address extends Model
     ];
 
     /**
+     * Dynamically filter fillable attributes to existing database table columns
+     */
+    public function getFillable()
+    {
+        $fillable = $this->fillable;
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('addresses', 'latitude')) {
+                return array_values(array_diff($fillable, ['latitude', 'longitude', 'screen_geo_coordinates', 'map_url']));
+            }
+        } catch (\Throwable $e) {}
+        return $fillable;
+    }
+
+    /**
      * @return Int
      */
     public function getId($request)
