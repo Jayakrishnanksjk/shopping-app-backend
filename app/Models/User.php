@@ -162,6 +162,14 @@ class User extends Authenticatable implements HasMedia
     /**
      * @return HasOne
      */
+    public function rewardWallet(): HasOne
+    {
+        return $this->hasOne(CustomerRewardWallet::class, 'customer_id');
+    }
+
+    /**
+     * @return HasOne
+     */
     public function vendor_wallet(): HasOne
     {
         return $this->hasOne(VendorWallet::class, 'vendor_id');

@@ -43,7 +43,8 @@ class EventServiceProvider extends ServiceProvider
             PlaceOrderListener::class
         ],
         UpdateOrderStatusEvent::class => [
-            UpdateOrderStatusListener::class
+            UpdateOrderStatusListener::class,
+            \App\Listeners\AwardOrderRewardPoints::class,
         ],
         CreateWithdrawRequestEvent::class => [
             CreateWithdrawRequestListener::class

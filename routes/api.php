@@ -413,6 +413,20 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   Route::post('credit/points','App\Http\Controllers\PointsController@credit')->middleware('can:point.credit');
   Route::post('debit/points','App\Http\Controllers\PointsController@debit')->middleware('can:point.debit');
 
+  // Customer Purchase-Based Rewards (Grabzo Loyalty System)
+  Route::get('customer/rewards', 'App\Http\Controllers\CustomerRewardController@index');
+  Route::get('customer/rewards/transactions', 'App\Http\Controllers\CustomerRewardController@transactions');
+  Route::get('customer/rewards/orders/{id}', 'App\Http\Controllers\CustomerRewardController@orderDetails');
+
+  // Admin Purchase-Based Rewards Management
+  Route::get('admin/rewards/overview', 'App\Http\Controllers\AdminRewardController@overview');
+  Route::get('admin/rewards/customers', 'App\Http\Controllers\AdminRewardController@customers');
+  Route::get('admin/rewards/customers/{id}', 'App\Http\Controllers\AdminRewardController@customerDetails');
+  Route::get('admin/rewards/transactions', 'App\Http\Controllers\AdminRewardController@transactions');
+  Route::get('admin/rewards/settings', 'App\Http\Controllers\AdminRewardController@getSettings');
+  Route::put('admin/rewards/settings', 'App\Http\Controllers\AdminRewardController@updateSettings');
+  Route::get('admin/rewards/export', 'App\Http\Controllers\AdminRewardController@export');
+
   // Wallets
   Route::get('wallet/consumer', 'App\Http\Controllers\WalletController@index')->middleware('can:wallet.index');
   Route::post('credit/wallet','App\Http\Controllers\WalletController@credit')->middleware('can:wallet.credit');

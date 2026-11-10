@@ -216,4 +216,20 @@ class Order extends Model
         return $this->hasOne(Refund::class, 'order_id');
     }
 
+    /**
+     * @return HasMany
+     */
+    public function rewardTransactions(): HasMany
+    {
+        return $this->hasMany(RewardTransaction::class, 'order_id');
+    }
+
+    /**
+     * @return HasOne
+     */
+    public function rewardEarnTransaction(): HasOne
+    {
+        return $this->hasOne(RewardTransaction::class, 'order_id')->where('transaction_type', RewardTransaction::TYPE_EARN);
+    }
+
 }

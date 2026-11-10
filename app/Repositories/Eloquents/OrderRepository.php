@@ -418,6 +418,11 @@ public function update($request, $id)
                 if ($order->order_status->name == OrderEnum::DELIVERED) {
                     $order->delivered_at = Carbon::now()->toDateString();
                     $order->save();
+                    try {
+                        app(\App\Services\Rewards\RewardPointsService::class)->awardPointsForOrder($order);
+                    } catch (\Throwable $re) {
+                        \Illuminate\Support\Facades\Log::error("Failed to award reward points: " . $re->getMessage());
+                    }
                 }
 
                 event(new UpdateOrderStatusEvent($order));

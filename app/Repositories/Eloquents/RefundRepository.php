@@ -281,6 +281,15 @@ class RefundRepository extends BaseRepository
                     $this->creditWallet($refund->consumer_id, $refund->amount, WalletPointsDetail::ADMIN_CREDIT);
                 }
 
+                try {
+                    $orderForReward = Order::find($refund->order_id);
+                    if ($orderForReward) {
+                        app(\App\Services\Rewards\RewardPointsService::class)->handleRefundReversal($orderForReward, $refund);
+                    }
+                } catch (\Throwable $re) {
+                    \Illuminate\Support\Facades\Log::error("Failed to reverse reward points on refund: " . $re->getMessage());
+                }
+
                 $refund->is_used = true;
                 $refund->save();
             }
