@@ -7,6 +7,7 @@ use App\Models\Coupon;
 use App\Enums\RoleEnum;
 use App\Helpers\Helpers;
 use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Builder;
 use App\Http\Requests\CreateCouponRequest;
 use App\Http\Requests\UpdateCouponRequest;
 use App\GraphQL\Exceptions\ExceptionHandler;
@@ -80,7 +81,12 @@ class CouponController extends Controller
         if (Helpers::isUserLogin()) {
             $roleName = Helpers::getCurrentRoleName();
             if ($roleName == RoleEnum::VENDOR) {
-                $coupons = $coupons->where('created_by_id', Helpers::getCurrentUserId());
+                $vendorStoreId = Helpers::getCurrentVendorStoreId();
+                if ($vendorStoreId) {
+                    $coupons = $coupons->where('store_id', $vendorStoreId);
+                } else {
+                    $coupons = $coupons->where('created_by_id', Helpers::getCurrentUserId());
+                }
             }
         }
 
@@ -89,7 +95,34 @@ class CouponController extends Controller
         }
 
         if (isset($request->status)) {
-            $coupons = $coupons->where('status',$request->status);
+            $coupons = $coupons->where('status', $request->status);
+        }
+
+        $storeId = $request->store_id ?: $request->header('X-Store-Id');
+        if ($storeId) {
+            $coupons = $coupons->where(function ($q) use ($storeId) {
+                $id = (int) $storeId;
+                if ($id === 1 || $id === 3) {
+                    $q->whereIn('store_id', [1, 3])->orWhereNull('store_id');
+                } else {
+                    $q->where('store_id', $id);
+                }
+            });
+        }
+
+        if ($request->store_slug) {
+            $slug = $request->store_slug;
+            $coupons = $coupons->where(function ($q) use ($slug) {
+                if ($slug === 'grocery' || $slug === 'main-store' || $slug === 'foodzone') {
+                    $q->whereHas('store', function (Builder $stores) {
+                        $stores->whereIn('id', [1, 3]);
+                    })->orWhereNull('store_id');
+                } else {
+                    $q->whereHas('store', function (Builder $stores) use ($slug) {
+                        $stores->where('slug', $slug);
+                    });
+                }
+            });
         }
 
         return $coupons;
