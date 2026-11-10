@@ -53,6 +53,18 @@ class AddressRepository extends BaseRepository
         DB::beginTransaction();
         try {
 
+            $lat = $request->latitude ?? $request->lat ?? $request->location_latitude ?? null;
+            $lng = $request->longitude ?? $request->lng ?? $request->location_longitude ?? null;
+            if ((!$lat || !$lng) && !empty($request->screen_geo_coordinates)) {
+                $parts = explode(',', $request->screen_geo_coordinates);
+                if (count($parts) === 2) {
+                    $lat = trim($parts[0]);
+                    $lng = trim($parts[1]);
+                }
+            }
+            $coordPair = ($lat && $lng) ? "{$lat},{$lng}" : null;
+            $mapUrl = $coordPair ? "https://www.google.com/maps?q={$coordPair}" : null;
+
             $address = $this->model->create([
                 'title' => $request->title,
                 'street' => $request->street,
@@ -62,7 +74,11 @@ class AddressRepository extends BaseRepository
                 'pincode' => $request->pincode,
                 'country_id' => $request->country_id,
                 'state_id' => $request->state_id,
-                'user_id' => $request->user_id ?? Helpers::getCurrentUserId()
+                'user_id' => $request->user_id ?? Helpers::getCurrentUserId(),
+                'latitude' => $lat ? (string) $lat : null,
+                'longitude' => $lng ? (string) $lng : null,
+                'screen_geo_coordinates' => $coordPair,
+                'map_url' => $mapUrl,
             ]);
 
             $address->country;
@@ -83,8 +99,25 @@ class AddressRepository extends BaseRepository
         DB::beginTransaction();
         try {
 
+            $data = is_array($request) ? $request : $request->all();
+            $lat = $data['latitude'] ?? $data['lat'] ?? $data['location_latitude'] ?? null;
+            $lng = $data['longitude'] ?? $data['lng'] ?? $data['location_longitude'] ?? null;
+            if ((!$lat || !$lng) && !empty($data['screen_geo_coordinates'])) {
+                $parts = explode(',', $data['screen_geo_coordinates']);
+                if (count($parts) === 2) {
+                    $lat = trim($parts[0]);
+                    $lng = trim($parts[1]);
+                }
+            }
+            if ($lat && $lng) {
+                $data['latitude'] = (string) $lat;
+                $data['longitude'] = (string) $lng;
+                $data['screen_geo_coordinates'] = "{$lat},{$lng}";
+                $data['map_url'] = "https://www.google.com/maps?q={$lat},{$lng}";
+            }
+
             $address = $this->model->findOrFail($id);
-            $address->update($request);
+            $address->update($data);
 
             DB::commit();
             return $address;

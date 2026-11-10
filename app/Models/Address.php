@@ -27,6 +27,10 @@ class Address extends Model
         'is_default',
         'country_id',
         'country_code',
+        'latitude',
+        'longitude',
+        'screen_geo_coordinates',
+        'map_url',
     ];
 
     protected $casts = [

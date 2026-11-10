@@ -71,6 +71,8 @@
                     if (!$lat || !$lng) {
                         $coordStr = $orders->shipping_address?->screen_geo_coordinates 
                             ?? $orders->shipping_address?->geo_coordinates 
+                            ?? $orders->shipping_address?->location_coordinates
+                            ?? $orders->shipping_address?->latlong
                             ?? $orders->screen_geo_coordinates 
                             ?? null;
                         if ($coordStr && str_contains($coordStr, ',')) {
@@ -80,17 +82,46 @@
                         }
                     }
 
-                    // 3. Generate Turn-by-Turn Navigation URL (or generic search fallback)
+                    // 3. Fallback: Extract from map_url if present
+                    if (!$lat || !$lng) {
+                        $sourceMapUrl = $orders->shipping_address?->map_url ?? $orders->map_url ?? '';
+                        if (preg_match('/[?&](?:q|destination)=([0-9.-]+),([0-9.-]+)/', $sourceMapUrl, $m)) {
+                            $lat = trim($m[1]);
+                            $lng = trim($m[2]);
+                        }
+                    }
+
+                    // 4. Fallback: Extract coordinates if embedded in street or title
+                    if (!$lat || !$lng) {
+                        $searchPool = ($orders->shipping_address?->street ?? '') . ' ' . ($orders->shipping_address?->title ?? '');
+                        if (preg_match('/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/', $searchPool, $m)) {
+                            $lat = trim($m[1]);
+                            $lng = trim($m[2]);
+                        }
+                    }
+
+                    // Build shipping address string for fallback
+                    $shippingAddressString = implode(', ', array_filter([
+                        $orders->shipping_address?->street,
+                        $orders->shipping_address?->city,
+                        $orders->shipping_address?->state?->name,
+                        $orders->shipping_address?->country?->name,
+                        $orders->shipping_address?->pincode,
+                    ]));
+
+                    // 5. Fallback: Search combined address string
+                    if (!$lat || !$lng) {
+                        if (preg_match('/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/', $shippingAddressString, $m)) {
+                            $lat = trim($m[1]);
+                            $lng = trim($m[2]);
+                        }
+                    }
+
+                    // 6. Generate exact Dropped Pin Google Maps URL: https://www.google.com/maps?q=lat,lng
                     if (!empty($lat) && !empty($lng)) {
-                        $mapUrl = "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}";
+                        $mapUrl = "https://www.google.com/maps?q={$lat},{$lng}";
                     } else {
-                        $shippingAddressString = implode(', ', array_filter([
-                            $orders->shipping_address?->street,
-                            $orders->shipping_address?->city,
-                            $orders->shipping_address?->state?->name,
-                            $orders->shipping_address?->country?->name,
-                            $orders->shipping_address?->pincode,
-                        ]));
+                        // Fallback only if no coordinates could be extracted
                         $mapUrl = !empty($shippingAddressString) 
                             ? 'https://www.google.com/maps/search/?api=1&query=' . urlencode($shippingAddressString) 
                             : url("/orders/{$orders->order_number}");
