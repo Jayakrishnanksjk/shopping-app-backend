@@ -15,6 +15,7 @@ use App\Http\Requests\CreateOrderRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\GraphQL\Exceptions\ExceptionHandler;
 use App\Repositories\Eloquents\OrderRepository;
+use Illuminate\Database\Eloquent\Builder;
 
 class OrderController extends Controller
 {
@@ -180,6 +181,57 @@ class OrderController extends Controller
 
         if ($request->start_date && $request->end_date) {
             $orders = $orders->whereBetween('created_at',[$request->start_date, $request->end_date]);
+        }
+
+        $storeId = $request->store_id ?: $request->header('X-Store-Id');
+        if ($storeId) {
+            $orders = $orders->where(function ($q) use ($storeId) {
+                if ((int)$storeId === 3 || (int)$storeId === 1) {
+                    $q->where('store_id', $storeId)
+                      ->orWhereNull('store_id')
+                      ->orWhereHas('sub_orders', function (Builder $subOrders) use ($storeId) {
+                          $subOrders->where('store_id', $storeId)->orWhereNull('store_id');
+                      })
+                      ->orWhereHas('products', function (Builder $products) use ($storeId) {
+                          $products->where('store_id', $storeId)->orWhereNull('store_id');
+                      });
+                } else {
+                    $q->where('store_id', $storeId)
+                      ->orWhereHas('sub_orders', function (Builder $subOrders) use ($storeId) {
+                          $subOrders->where('store_id', $storeId);
+                      })
+                      ->orWhereHas('products', function (Builder $products) use ($storeId) {
+                          $products->where('store_id', $storeId);
+                      });
+                }
+            });
+        }
+
+        if ($request->store_slug) {
+            $store_slug = $request->store_slug;
+            $orders = $orders->where(function ($q) use ($store_slug) {
+                if ($store_slug === 'grocery' || $store_slug === 'main-store') {
+                    $q->whereHas('store', function (Builder $stores) use ($store_slug) {
+                        $stores->where('slug', $store_slug);
+                    })->orWhereNull('store_id')
+                    ->orWhereHas('sub_orders.store', function (Builder $stores) use ($store_slug) {
+                        $stores->where('slug', $store_slug);
+                    })
+                    ->orWhereHas('products.store', function (Builder $stores) use ($store_slug) {
+                        $stores->where('slug', $store_slug);
+                    });
+                } else {
+                    $q->whereHas('store', function (Builder $stores) use ($store_slug) {
+                        $stores->where('slug', $store_slug);
+                    })
+                    ->orWhereHas('sub_orders.store', function (Builder $stores) use ($store_slug) {
+                        $stores->where('slug', $store_slug);
+                    })
+                    ->orWhereHas('products.store', function (Builder $stores) use ($store_slug) {
+                        $stores->where('slug', $store_slug);
+                    });
+                }
+            });
         }
 
         return $orders;
