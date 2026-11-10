@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use Exception;
 use App\Models\OfferBanner;
+use App\Enums\RoleEnum;
 use App\Helpers\Helpers;
 use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Builder;
 use App\Http\Requests\CreateOfferBannerRequest;
 use App\Http\Requests\UpdateOfferBannerRequest;
 use App\GraphQL\Exceptions\ExceptionHandler;
@@ -66,9 +68,14 @@ class OfferBannerController extends Controller
 
     public function filter($offerBanners, $request)
     {
-        $storeId = Helpers::getRequestedStoreId($request);
-        if ($storeId) {
-            $offerBanners = Helpers::scopeToStore($offerBanners, $storeId);
+        if (Helpers::isUserLogin()) {
+            $roleName = Helpers::getCurrentRoleName();
+            if ($roleName == RoleEnum::VENDOR) {
+                $vendorStoreId = Helpers::getCurrentVendorStoreId();
+                if ($vendorStoreId) {
+                    $offerBanners = $offerBanners->where('store_id', $vendorStoreId);
+                }
+            }
         }
 
         if ($request->field && $request->sort) {
@@ -77,6 +84,22 @@ class OfferBannerController extends Controller
 
         if (isset($request->status)) {
             $offerBanners = $offerBanners->where('status', $request->status);
+        }
+
+        $storeId = $request->store_id ?: $request->header('X-Store-Id');
+        if ($storeId) {
+            $offerBanners = $offerBanners->where(function ($q) use ($storeId) {
+                $q->where('store_id', (int) $storeId)->orWhereNull('store_id');
+            });
+        }
+
+        if ($request->store_slug) {
+            $slug = $request->store_slug;
+            $offerBanners = $offerBanners->where(function ($q) use ($slug) {
+                $q->whereHas('store', function (Builder $stores) use ($slug) {
+                    $stores->where('slug', $slug);
+                })->orWhereNull('store_id');
+            });
         }
 
         return $offerBanners;
