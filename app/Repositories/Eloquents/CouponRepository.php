@@ -111,6 +111,10 @@ class CouponRepository extends BaseRepository
                 $data['store_id'] = ($data['store_id'] !== '' && $data['store_id'] !== null)
                     ? (int) $data['store_id']
                     : null;
+            } else {
+                // If store_id was not explicitly in the update payload, preserve the coupon's existing store_id,
+                // or assign from the active store if the coupon does not have a store_id assigned yet.
+                $data['store_id'] = $coupon->store_id ?: Helpers::getRequestedStoreId();
             }
 
             $coupon->update($data);

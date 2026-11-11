@@ -113,7 +113,7 @@ class CouponController extends Controller
         if ($request->store_slug) {
             $slug = $request->store_slug;
             $coupons = $coupons->where(function ($q) use ($slug) {
-                if ($slug === 'grocery' || $slug === 'main-store' || $slug === 'foodzone') {
+                if ($slug === 'grocery' || $slug === 'main-store') {
                     $q->whereHas('store', function (Builder $stores) {
                         $stores->whereIn('id', [1, 3]);
                     })->orWhereNull('store_id');
