@@ -11,7 +11,8 @@ enum PaymentMethod {
   const PHONEPE = 'phonepe';
   const INSTAMOJO = 'instamojo';
   const CCAVENUE = 'ccavenue';
+  const WALLET = 'wallet';
   const ALL_PAYMENT_METHODS = [
-    'cod', 'paypal', 'stripe', 'mollie', 'ccavenue', 'phonepe', 'instamojo','razorpay'
+    'cod', 'paypal', 'stripe', 'mollie', 'ccavenue', 'phonepe', 'instamojo','razorpay', 'wallet'
   ];
 }

@@ -293,4 +293,54 @@ class RewardPointsSystemTest extends TestCase
         $this->assertFalse($jewelDetails['is_eligible_store']);
         $this->assertEquals(0, $jewelDetails['points_earned']);
     }
+
+    /**
+     * Requirement: In groceries purchase, customers can use reward points from their wallet
+     * to pay for the purchase, or use wallet and pay the remaining with UPI/COD.
+     * Example: ₹250 bill, ₹150 wallet -> ₹150 from wallet, ₹100 remaining.
+     */
+    public function test_reward_points_wallet_redemption_for_grocery_order()
+    {
+        $user = User::first() ?? User::factory()->create();
+
+        // Credit user with 17,647 points (~₹150.00 at ₹0.0085/pt)
+        $wallet = $this->walletService->getOrCreateWallet($user->id);
+        $wallet->total_points = 17647;
+        $wallet->save();
+
+        $initialRupees = $this->walletService->getCustomerRewardBalance($user->id);
+        $this->assertEquals(150.00, $initialRupees);
+
+        $groceryStore = Store::firstOrCreate(['id' => 3], [
+            'store_name' => 'Mather Hypermarket',
+            'slug' => 'grocery',
+        ]);
+
+        // Grocery order: ₹250.00 total bill
+        $order = Order::create([
+            'order_number' => rand(100000, 999999),
+            'consumer_id' => $user->id,
+            'store_id' => $groceryStore->id,
+            'amount' => 250.00,
+            'total' => 250.00,
+            'payment_method' => 'phonepe',
+        ]);
+
+        // Redeem ₹150.00 from wallet
+        $pointsDebited = $this->walletService->debitRewardPointsForOrder($user->id, $order, 150.00);
+        $this->assertGreaterThan(0, $pointsDebited);
+
+        // Verify remaining wallet balance
+        $wallet->refresh();
+        $remainingRupees = $this->walletService->getCustomerRewardBalance($user->id);
+        $this->assertEquals(0.00, $remainingRupees);
+
+        // Verify transaction ledger record
+        $redeemTx = RewardTransaction::where('order_id', $order->id)
+            ->where('transaction_type', 'REDEEM')
+            ->first();
+        $this->assertNotNull($redeemTx);
+        $this->assertEquals(-$pointsDebited, $redeemTx->points);
+        $this->assertEquals(150.00, (float) $redeemTx->eligible_amount);
+    }
 }

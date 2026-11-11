@@ -226,53 +226,27 @@ trait CheckoutTrait
         $walletBalance = abs($convert_wallet_balance);
       }
 
+      // Check Grocery Store Reward Points Wallet balance
+      $rewardWalletService = app(\App\Services\Rewards\RewardWalletService::class);
+      $consumerId = $this->getConsumerId($request);
+      $rewardRupeeBalance = $consumerId ? $rewardWalletService->getCustomerRewardBalance($consumerId) : 0.0;
+      $rewardPointsBalance = 0;
+      if ($consumerId) {
+          $walletObj = $rewardWalletService->getOrCreateWallet($consumerId);
+          $rewardPointsBalance = (int) ($walletObj->total_points ?? 0);
+      }
+
+      if ($rewardRupeeBalance > 0 && $walletBalance <= 0) {
+          $walletBalance = $rewardRupeeBalance;
+          $convert_wallet_balance = -$rewardRupeeBalance;
+      }
+
       // $subTotal = sum of per-store taxable values (ex-GST), used for GST reporting sub-total.
       $subTotal = array_sum($filtered_sub_Total);
       // $total starts from getTotalAmount() = GST-inclusive price total.
       // This ensures the customer's payable amount is NEVER changed by GST extraction.
       $total = $amount;
       $couponDiscount = array_sum($couponTotalDiscount);
-
-      if ($request->wallet_balance) {
-        if ($this->verifyWallet($this->getConsumerId($request), $walletBalance)) {
-          $convert_wallet_balance = abs($walletBalance);
-          $walletBalance -=  $convert_wallet_balance;
-          $total -= $convert_wallet_balance;
-          if ($total < 0) {
-            $walletBalance = abs($total);
-            $total = 0;
-          }
-
-          if ($walletBalance > 0) {
-            $convert_wallet_balance -= $walletBalance;
-          }
-
-          if ($walletBalance <= 0) {
-            $convert_point_amount = - (min($pointsAmount, ($total - $walletBalance)));
-          }
-
-          $convert_wallet_balance = -$convert_wallet_balance;
-        }
-      }
-
-      if ($request->points_amount) {
-        if ($this->verifyPoints($this->getConsumerId($request), $pointsAmount)) {
-          $convert_point_amount =  abs($pointsAmount);
-          $pointsAmount -=  $convert_point_amount;
-          $total -= $convert_point_amount;
-
-          if ($total < 0) {
-            $pointsAmount = abs($total);
-            $total = 0;
-          }
-
-          if ($pointsAmount > 0) {
-            $convert_point_amount -= $pointsAmount;
-          }
-
-          $convert_point_amount = -$convert_point_amount;
-        }
-      }
 
       if ($couponDiscount > 0) {
         $total -= $couponDiscount;
@@ -282,7 +256,19 @@ trait CheckoutTrait
         }
       }
 
-      $total +=  $shippingTotal;
+      $total += $shippingTotal;
+
+      // Apply wallet / reward points against the total payable bill
+      if ($request->wallet_balance || $request->points_amount) {
+        $availableWallet = max($walletBalance, $rewardRupeeBalance);
+        if ($availableWallet > 0) {
+          $appliedWallet = min($availableWallet, $total);
+          $convert_wallet_balance = -$appliedWallet;
+          $walletBalance = $availableWallet - $appliedWallet;
+          $total -= $appliedWallet;
+        }
+      }
+
       $itemTotal = [
         'tax_total' => $this->formatDecimal(array_sum($tax)),
         'shipping_total' => $this->formatDecimal($shippingTotal),
@@ -291,9 +277,11 @@ trait CheckoutTrait
         'points_amount' => $this->formatDecimal($pointsAmount),
         'wallet_balance' => $this->formatDecimal($walletBalance),
         'convert_wallet_balance' => $this->formatDecimal($convert_wallet_balance),
+        'reward_points_balance' => $rewardPointsBalance,
+        'reward_wallet_balance' => $this->formatDecimal($rewardRupeeBalance),
         'coupon_total_discount' => $this->formatDecimal($couponDiscount),
         'sub_total' => $this->formatDecimal($subTotal),
-        'total' => $this->formatDecimal($total)
+        'total' => $this->formatDecimal(max(0, $total))
       ];
 
       $items['total'] = $itemTotal;

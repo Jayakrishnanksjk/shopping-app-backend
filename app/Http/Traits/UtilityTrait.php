@@ -28,7 +28,7 @@ trait UtilityTrait
       }
     }
 
-    if ($method === 'cod') {
+    if ($method === 'cod' || $method === 'wallet' || $method === PaymentMethod::WALLET) {
       return true;
     }
 
@@ -37,6 +37,9 @@ trait UtilityTrait
 
   public function isActivePaymentMethod($method, $amount = null)
   {
+    if ($method === 'wallet' || $method === PaymentMethod::WALLET || ((float) $amount <= 0 && $amount !== null)) {
+      return true;
+    }
     $settings = Helpers::getSettings();
     if ($this->isEnablePaymentMethod($method)) {
       $defaultCurrencyCode = Helpers::getDefaultCurrencyCode();

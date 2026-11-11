@@ -36,7 +36,7 @@ class CreateOrderRequest extends FormRequest
             'coupon' => ['nullable','exists:coupons,code,deleted_at,NULL'],
             'billing_address_id' => ['required', 'exists:addresses,id,deleted_at,NULL'],
             'shipping_address_id'=>['required', 'exists:addresses,id,deleted_at,NULL'],
-            'payment_method' => ['string', 'in:razorpay,phonepe,instamojo,paypal,stripe,mollie,ccavenue,cod'],
+            'payment_method' => ['string', 'in:razorpay,phonepe,instamojo,paypal,stripe,mollie,ccavenue,cod,wallet'],
             'delivery_interval' => ['nullable','string'],
         ];
 

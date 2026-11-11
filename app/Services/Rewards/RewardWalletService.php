@@ -4,6 +4,7 @@ namespace App\Services\Rewards;
 
 use App\Models\CustomerRewardWallet;
 use App\Models\RewardTransaction;
+use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 
 class RewardWalletService
@@ -44,6 +45,49 @@ class RewardWalletService
             'wallet_balance' => (float) number_format($walletBalance, 2, '.', ''),
             'currency' => 'INR',
         ];
+    }
+
+    /**
+     * Get available reward balance in rupees for a customer
+     */
+    public function getCustomerRewardBalance(int $customerId): float
+    {
+        $wallet = $this->getOrCreateWallet($customerId);
+        $totalPoints = (int) $wallet->total_points;
+        $conversionRate = $this->settingsService->getConversionRate();
+        return (float) number_format(round($totalPoints * $conversionRate, 2), 2, '.', '');
+    }
+
+    /**
+     * Debit reward points from wallet when used to pay for a grocery purchase
+     */
+    public function debitRewardPointsForOrder(int $customerId, Order $order, float $amountInRupees): int
+    {
+        if ($amountInRupees <= 0) return 0;
+
+        $wallet = $this->getOrCreateWallet($customerId);
+        $conversionRate = $this->settingsService->getConversionRate();
+        if ($conversionRate <= 0) return 0;
+
+        // Points to debit = amount / rate
+        $pointsToDebit = (int) min($wallet->total_points, ceil($amountInRupees / $conversionRate));
+        if ($pointsToDebit <= 0) return 0;
+
+        $wallet->total_points = (int) max(0, $wallet->total_points - $pointsToDebit);
+        $wallet->save();
+
+        RewardTransaction::create([
+            'customer_id' => $customerId,
+            'wallet_id' => $wallet->id,
+            'order_id' => $order->id,
+            'transaction_type' => RewardTransaction::TYPE_REDEEM,
+            'points' => -$pointsToDebit,
+            'eligible_amount' => $amountInRupees,
+            'description' => "Redeemed on Grocery Order #{$order->order_number}",
+            'reference_id' => "REDEEM_ORDER_{$order->id}",
+        ]);
+
+        return $pointsToDebit;
     }
 
     /**

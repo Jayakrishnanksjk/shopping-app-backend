@@ -228,10 +228,11 @@ class OrderRepository extends BaseRepository
                 }
             }
 
-            if ($request->wallet_balance) {
-                $balance = abs($items['total']['convert_wallet_balance']);
-                if ($this->verifyWallet($consumer_id, $balance)) {
-                    $this->debitWallet($consumer_id, $balance, WalletPointsDetail::WALLET_ORDER.' #'.$order->order_number);
+            if ($request->wallet_balance || $request->points_amount) {
+                $balance = abs($items['total']['convert_wallet_balance'] ?? 0);
+                if ($balance > 0) {
+                    $rewardWalletService = app(\App\Services\Rewards\RewardWalletService::class);
+                    $rewardWalletService->debitRewardPointsForOrder($consumer_id, $order, $balance);
                 }
             }
 
@@ -660,8 +661,24 @@ public function update($request, $id)
     public function createPayment(Order $order, $request)
     {
         try {
+            // When order is 100% paid by wallet / reward points, complete directly without gateway redirect
+            if ((float) $order->total <= 0 || $request->payment_method === 'wallet' || $request->payment_method === PaymentMethod::WALLET) {
+                $order->payment_status = PaymentStatus::COMPLETED;
+                $order->payment_method = 'wallet';
+                $order->save();
+                event(new PlaceOrderEvent($order));
+                return $order;
+            }
 
             switch ($request->payment_method) {
+                case 'wallet':
+                case PaymentMethod::WALLET:
+                    $order->payment_status = PaymentStatus::COMPLETED;
+                    $order->payment_method = 'wallet';
+                    $order->save();
+                    event(new PlaceOrderEvent($order));
+                    return $order;
+
                 case PaymentMethod::PAYPAL:
                     return PayPal::getIntent($order, $request);
 

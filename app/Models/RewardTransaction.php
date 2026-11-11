@@ -14,6 +14,7 @@ class RewardTransaction extends Model
 
     const TYPE_EARN = 'EARN';
     const TYPE_REVERSAL = 'REVERSAL';
+    const TYPE_REDEEM = 'REDEEM';
 
     protected $fillable = [
         'customer_id',
