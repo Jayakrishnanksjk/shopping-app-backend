@@ -39,13 +39,20 @@ class SendPushBroadcastJob implements ShouldQueue
         $broadcast->loadMissing('image');
         $imageUrl = $broadcast->resolved_image_url;
 
-        // Resolve target slug if redirect_type is product or category
+        // Resolve target details if redirect_type is product or category
         $slug = '';
+        $categoryName = '';
+        $categoryId = '';
         if (!empty($broadcast->redirect_type) && !empty($broadcast->redirect_target)) {
             if ($broadcast->redirect_type === 'product') {
                 $slug = \App\Models\Product::where('id', $broadcast->redirect_target)->value('slug') ?? '';
             } elseif ($broadcast->redirect_type === 'category') {
-                $slug = \App\Models\Category::where('id', $broadcast->redirect_target)->value('slug') ?? '';
+                $category = \App\Models\Category::find($broadcast->redirect_target);
+                if ($category) {
+                    $slug = $category->slug ?? '';
+                    $categoryName = $category->name ?? '';
+                    $categoryId = (string) $category->id;
+                }
             }
         }
 
@@ -58,6 +65,9 @@ class SendPushBroadcastJob implements ShouldQueue
             'target_id' => (string) ($broadcast->redirect_target ?? ''),
             'id' => (string) ($broadcast->redirect_target ?? ''),
             'slug' => (string) $slug,
+            'category_id' => (string) ($categoryId ?: $broadcast->redirect_target),
+            'category_slug' => (string) $slug,
+            'category_name' => (string) $categoryName,
         ];
 
         // Real push via shared FCM topic 'all_users' (single dispatch to all subscribed devices)

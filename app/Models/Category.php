@@ -166,6 +166,31 @@ class Category extends Model implements HasMedia
     }
 
     /**
+     * Recursively collect all descendant category IDs (subcategories, sub-subcategories, etc.).
+     *
+     * @param int|array $parentIds
+     * @return array
+     */
+    public static function getAllDescendantIds($parentIds): array
+    {
+        $parentIds = is_array($parentIds) ? $parentIds : [$parentIds];
+        $allIds = array_map('intval', array_filter($parentIds));
+        $currentLevel = $allIds;
+
+        while (!empty($currentLevel)) {
+            $childIds = static::whereIn('parent_id', $currentLevel)->pluck('id')->all();
+            $newChildren = array_diff($childIds, $allIds);
+            if (empty($newChildren)) {
+                break;
+            }
+            $allIds = array_merge($allIds, $newChildren);
+            $currentLevel = $newChildren;
+        }
+
+        return array_values(array_unique($allIds));
+    }
+
+    /**
      * Get the Parent Categories.
      */
     public function scopeParent(Builder $query, bool $parent): Builder
