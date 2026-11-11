@@ -6,6 +6,7 @@ use Tests\TestCase;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\Refund;
+use App\Models\Store;
 use App\Models\CustomerRewardWallet;
 use App\Models\RewardTransaction;
 use App\Models\RewardSetting;
@@ -238,5 +239,58 @@ class RewardPointsSystemTest extends TestCase
 
         $walletAfterRefund2 = CustomerRewardWallet::where('customer_id', $user->id)->first();
         $this->assertEquals($initialPoints - 5, $walletAfterRefund2->total_points);
+    }
+
+    /**
+     * Requirement: Reward points are strictly exclusive to Grocery Store orders.
+     * Foodzone (store_id = 4 or 1) and Jewellery (store_id = 5 or 2) must never earn points.
+     */
+    public function test_non_grocery_orders_do_not_earn_points()
+    {
+        $user = User::first() ?? User::factory()->create();
+
+        $foodStore = Store::firstOrCreate(['id' => 4], [
+            'store_name' => 'Food Zone',
+            'slug' => 'foodzone',
+        ]);
+
+        // 1. Foodzone order (store_id = 4)
+        $foodOrder = Order::create([
+            'order_number' => rand(100000, 999999),
+            'consumer_id' => $user->id,
+            'store_id' => $foodStore->id,
+            'amount' => 1000.00,
+            'total' => 1000.00,
+        ]);
+
+        $this->assertFalse($this->pointsService->isGroceryOrder($foodOrder));
+        $foodTx = $this->pointsService->awardPointsForOrder($foodOrder);
+        $this->assertNull($foodTx);
+
+        $foodDetails = $this->pointsService->getOrderRewardDetails($foodOrder);
+        $this->assertFalse($foodDetails['is_eligible_store']);
+        $this->assertEquals(0, $foodDetails['points_earned']);
+
+        $jewelStore = Store::firstOrCreate(['id' => 5], [
+            'store_name' => 'Mather Jewellery',
+            'slug' => 'jewellery',
+        ]);
+
+        // 2. Jewellery order (store_id = 5)
+        $jewelOrder = Order::create([
+            'order_number' => rand(100000, 999999),
+            'consumer_id' => $user->id,
+            'store_id' => $jewelStore->id,
+            'amount' => 50000.00,
+            'total' => 50000.00,
+        ]);
+
+        $this->assertFalse($this->pointsService->isGroceryOrder($jewelOrder));
+        $jewelTx = $this->pointsService->awardPointsForOrder($jewelOrder);
+        $this->assertNull($jewelTx);
+
+        $jewelDetails = $this->pointsService->getOrderRewardDetails($jewelOrder);
+        $this->assertFalse($jewelDetails['is_eligible_store']);
+        $this->assertEquals(0, $jewelDetails['points_earned']);
     }
 }

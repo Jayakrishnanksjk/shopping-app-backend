@@ -60,6 +60,47 @@ class RewardPointsService
     }
 
     /**
+     * Check if an order belongs to the Grocery store.
+     * Reward points are strictly exclusive to Grocery Store orders.
+     */
+    public function isGroceryOrder(Order $order): bool
+    {
+        $storeId = (int) ($order->store_id ?? 0);
+
+        // Store 4 or 1 = Foodzone (Food orders never earn/use reward points)
+        // Store 5 or 2 = Mather Jewellery (Jewellery orders never earn/use reward points)
+        if (in_array($storeId, [4, 1, 5, 2], true)) {
+            return false;
+        }
+
+        // If store relation is loaded or exists, check slug or store name
+        if ($order->store) {
+            $slug = strtolower($order->store->slug ?? '');
+            $name = strtolower($order->store->store_name ?? '');
+            if (str_contains($slug, 'food') || str_contains($name, 'food')) {
+                return false;
+            }
+            if (str_contains($slug, 'jewel') || str_contains($name, 'jewel')) {
+                return false;
+            }
+            if (str_contains($slug, 'groc') || str_contains($name, 'groc')) {
+                return true;
+            }
+        }
+
+        // Check products in the order if loaded
+        if ($order->relationLoaded('products') && $order->products->isNotEmpty()) {
+            $prodStoreId = (int) ($order->products->first()->store_id ?? 0);
+            if (in_array($prodStoreId, [4, 1, 5, 2], true)) {
+                return false;
+            }
+        }
+
+        // Default: store_id 3, null, or 0 is Grocery store
+        return true;
+    }
+
+    /**
      * Award points for a delivered order.
      * Atomic, idempotent, and protected against concurrency.
      */
@@ -72,6 +113,12 @@ class RewardPointsService
 
         // 2. Must belong to a registered customer
         if (!$order->consumer_id) {
+            return null;
+        }
+
+        // 3. Must be a Grocery Store order (strictly Grocery only)
+        if (!$this->isGroceryOrder($order)) {
+            Log::info("Reward points skipped for Order #{$order->id}: Only Grocery Store orders are eligible.");
             return null;
         }
 
@@ -208,6 +255,21 @@ class RewardPointsService
      */
     public function getOrderRewardDetails(Order $order): array
     {
+        $isGrocery = $this->isGroceryOrder($order);
+        if (!$isGrocery) {
+            return [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number ?? $order->id,
+                'is_eligible_store' => false,
+                'eligible_product_amount' => 0.0,
+                'points_earned' => 0,
+                'points_reversed' => 0,
+                'net_points' => 0,
+                'is_credited' => false,
+                'status' => 'Not applicable (Grocery orders only)',
+            ];
+        }
+
         $eligibleAmount = $this->calculateEligibleAmount($order);
         $earnTx = $this->transactionService->getEarnTransaction($order->id);
         $reversedPoints = $this->transactionService->getTotalReversedPoints($order->id);
@@ -220,6 +282,7 @@ class RewardPointsService
         return [
             'order_id' => $order->id,
             'order_number' => $order->order_number ?? $order->id,
+            'is_eligible_store' => true,
             'eligible_product_amount' => $eligibleAmount,
             'points_earned' => $pointsEarned,
             'points_reversed' => $reversedPoints,
@@ -229,3 +292,4 @@ class RewardPointsService
         ];
     }
 }
+

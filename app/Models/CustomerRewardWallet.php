@@ -35,3 +35,4 @@ class CustomerRewardWallet extends Model
         return $this->hasMany(RewardTransaction::class, 'wallet_id')->orderBy('id', 'desc');
     }
 }
+

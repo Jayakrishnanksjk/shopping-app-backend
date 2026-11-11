@@ -69,3 +69,4 @@ class RewardSettingsService
         return (float) ($this->getSettings()->point_conversion_value ?? 0.0085);
     }
 }
+
