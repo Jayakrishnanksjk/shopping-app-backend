@@ -64,7 +64,7 @@ class PushBroadcastRepository extends BaseRepository
             DB::commit();
 
             if ($broadcast->schedule_type === PushBroadcast::SCHEDULE_IMMEDIATE) {
-                SendPushBroadcastJob::dispatch($broadcast->id);
+                SendPushBroadcastJob::dispatchSync($broadcast->id);
             }
 
             return $broadcast->fresh();
@@ -141,11 +141,26 @@ class PushBroadcastRepository extends BaseRepository
 
             $broadcast->loadMissing('image');
             $imageUrl = $broadcast->resolved_image_url;
+
+            // Resolve target slug if redirect_type is product or category
+            $slug = '';
+            if (!empty($broadcast->redirect_type) && !empty($broadcast->redirect_target)) {
+                if ($broadcast->redirect_type === 'product') {
+                    $slug = \App\Models\Product::where('id', $broadcast->redirect_target)->value('slug') ?? '';
+                } elseif ($broadcast->redirect_type === 'category') {
+                    $slug = \App\Models\Category::where('id', $broadcast->redirect_target)->value('slug') ?? '';
+                }
+            }
+
             $data = [
+                'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
                 'broadcast_id' => (string) $broadcast->id,
-                'type'          => 'broadcast',
+                'type'          => (string) ($broadcast->redirect_type ?: 'broadcast'),
                 'redirect_type'   => (string) ($broadcast->redirect_type ?? ''),
                 'redirect_target' => (string) ($broadcast->redirect_target ?? ''),
+                'target_id'       => (string) ($broadcast->redirect_target ?? ''),
+                'id'              => (string) ($broadcast->redirect_target ?? ''),
+                'slug'            => (string) $slug,
             ];
 
             // Send push via shared FCM topic 'all_users' (single dispatch to all subscribed devices)
