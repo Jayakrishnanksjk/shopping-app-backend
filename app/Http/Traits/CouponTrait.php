@@ -90,7 +90,8 @@ trait CouponTrait
     // A store coupon must never discount another store's products.
     if ($coupon->store_id && isset($product['product_id'])) {
       $productStoreId = Helpers::getStoreIdByProductId($product['product_id']);
-      if ($productStoreId && (int) $productStoreId !== (int) $coupon->store_id) {
+      $isBothMainStore = in_array((int) $productStoreId, [1, 3], true) && in_array((int) $coupon->store_id, [1, 3], true);
+      if (!$isBothMainStore && $productStoreId && (int) $productStoreId !== (int) $coupon->store_id) {
         return false;
       }
     }

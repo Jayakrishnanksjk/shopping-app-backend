@@ -123,9 +123,10 @@ class Helpers
     }
 
     return $query->where(function ($q) use ($storeId, $includeMainStoreGlobals) {
-      $q->where('store_id', (int) $storeId);
       if ($includeMainStoreGlobals && self::isMainStoreScope($storeId)) {
-        $q->orWhereNull('store_id');
+        $q->whereIn('store_id', [1, 3])->orWhereNull('store_id');
+      } else {
+        $q->where('store_id', (int) $storeId);
       }
     });
   }
