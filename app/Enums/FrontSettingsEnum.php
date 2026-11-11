@@ -10,4 +10,5 @@ enum FrontSettingsEnum:string {
   case DELIVERY = 'delivery';
   case WALLET_POINTS = 'wallet_points';
   case GOOGLE_RECAPTCHA = 'google_reCaptcha';
+  case APP_UPDATE = 'app_update';
 }

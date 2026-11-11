@@ -54,6 +54,24 @@ class SettingRepository extends BaseRepository
             $settings['values'] = Arr::only($settingValues, array_column(FrontSettingsEnum::cases(), 'value'));
             $settings['values']['payment_methods'] = $paymentMethodStatus ?? [];
 
+            if (empty($settings['values']['app_update'])) {
+                $settings['values']['app_update'] = [
+                    'status' => true,
+                    'min_version' => '1.0',
+                    'latest_version' => '1.2',
+                    'force_update' => false,
+                    'title' => 'Update Available! 🚀',
+                    'message' => 'A new update of Grabzo is available on Google Play with new store features and improvements.',
+                    'play_store_url' => 'market://details?id=com.mstream.grabzo',
+                    'app_store_url' => 'https://apps.apple.com/app/id6738982365',
+                    'release_notes' => [
+                        'Dedicated carts for Groceries, Food Zone, and Jewellery',
+                        'Reward points wallet for grocery orders',
+                        'Speed and checkout improvements'
+                    ]
+                ];
+            }
+
             return $settings;
 
         } catch (Exception $e) {
