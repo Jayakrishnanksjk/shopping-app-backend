@@ -333,11 +333,11 @@ class ProductController extends Controller
             if (!empty($matchedIds)) {
                 $expandedIds = \App\Models\Category::getAllDescendantIds($matchedIds);
                 $product = $product->whereHas('categories', function (Builder $categories) use ($expandedIds, $slugs) {
-                    $categories->whereIn('id', $expandedIds)->orWhereIn('slug', $slugs);
+                    $categories->whereIn('categories.id', $expandedIds)->orWhereIn('categories.slug', $slugs);
                 });
             } else {
                 $product = $product->whereHas('categories', function (Builder $categories) use($slugs) {
-                    $categories->WhereIn('slug', $slugs);
+                    $categories->whereIn('categories.slug', $slugs);
                 });
             }
         }
