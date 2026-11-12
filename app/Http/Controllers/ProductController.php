@@ -285,24 +285,11 @@ class ProductController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = trim($request->search);
-            $cleanSearch = preg_replace('/[^a-zA-Z0-9]/', '', $search);
-
-            $product = $product->where(function ($q) use ($search, $cleanSearch) {
+            $search = $request->search;
+            $product = $product->where(function ($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
                   ->orWhere('sku', 'LIKE', "%{$search}%")
                   ->orWhere('barcode', 'LIKE', "%{$search}%");
-
-                // Advance search: match products when spaces or dashes are removed (e.g. "milkymist" matches "Milky Mist")
-                if (!empty($cleanSearch) && strlen($cleanSearch) >= 3) {
-                    $q->orWhereRaw("REPLACE(REPLACE(name, ' ', ''), '-', '') LIKE ?", ["%{$cleanSearch}%"]);
-                }
-
-                // If user entered multi-word search, also match individual words (>= 3 chars)
-                $words = array_filter(explode(' ', $search), function($w) { return strlen($w) >= 3; });
-                foreach ($words as $word) {
-                    $q->orWhere('name', 'LIKE', "%{$word}%");
-                }
             });
         }
 
@@ -329,17 +316,9 @@ class ProductController extends Controller
 
         if ($request->category) {
             $slugs = explode(',', $request->category);
-            $matchedIds = \App\Models\Category::whereIn('slug', $slugs)->pluck('id')->all();
-            if (!empty($matchedIds)) {
-                $expandedIds = \App\Models\Category::getAllDescendantIds($matchedIds);
-                $product = $product->whereHas('categories', function (Builder $categories) use ($expandedIds, $slugs) {
-                    $categories->whereIn('categories.id', $expandedIds)->orWhereIn('categories.slug', $slugs);
-                });
-            } else {
-                $product = $product->whereHas('categories', function (Builder $categories) use($slugs) {
-                    $categories->whereIn('categories.slug', $slugs);
-                });
-            }
+            $product = $product->whereHas('categories', function (Builder $categories) use($slugs) {
+                $categories->WhereIn('slug', $slugs);
+            });
         }
 
         if ($request->tag) {
@@ -422,12 +401,10 @@ class ProductController extends Controller
             $product = $product->whereIn('store_id', $store_ids);
         }
 
-        $categoryIdsParam = $request->category_ids ?: $request->category_id;
-        if ($categoryIdsParam) {
-            $category_ids = is_array($categoryIdsParam) ? $categoryIdsParam : explode(',', $categoryIdsParam);
-            $expandedCategoryIds = \App\Models\Category::getAllDescendantIds($category_ids);
-            $product = $product->whereRelation('categories', function($categories) use($expandedCategoryIds) {
-                $categories->whereIn('category_id', $expandedCategoryIds);
+        if ($request->category_ids) {
+            $category_ids = explode(',', $request->category_ids);
+            $product = $product->whereRelation('categories', function($categories) use($category_ids) {
+                $categories->WhereIn('category_id', $category_ids);
             });
         }
 
