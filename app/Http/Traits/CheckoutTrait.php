@@ -90,8 +90,8 @@ trait CheckoutTrait
         $inclusiveSubTotal = Helpers::getSubTotal($singleProductPrice, $product['quantity']);
         $subTotal = $inclusiveSubTotal; // may be reduced by coupon below
 
-        $minOrderFreeShipping = $settings['general']['min_order_free_shipping'] ?? 0;
-        if ($minOrderFreeShipping >= $amount) {
+        $minOrderFreeShipping = (float) ($settings['general']['min_order_free_shipping'] ?? 199);
+        if ($minOrderFreeShipping > 0 ? (round($amount, 2) < round($minOrderFreeShipping, 2)) : false) {
           if ($shippingRules) {
             if ($this->isNotFreeShipping($product['product_id'])) {
               foreach ($shippingRules as $shippingRule) {
