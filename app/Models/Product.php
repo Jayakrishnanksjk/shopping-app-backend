@@ -247,7 +247,11 @@ class Product extends Model implements HasMedia
      */
     public function getId($request)
     {
-        return ($request->id) ? $request->id : $request->route('product')->id;
+        if ($request->id) {
+            return $request->id;
+        }
+        $routeParam = $request->route('product');
+        return is_object($routeParam) ? $routeParam->id : $routeParam;
     }
 
     /**

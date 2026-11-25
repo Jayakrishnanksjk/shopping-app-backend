@@ -47,7 +47,7 @@ class UpdateProductRequest extends FormRequest
         }
 
         $rules = [
-            'name'                  => ['required', 'string', 'max:255'],
+            'name'                  => ['sometimes', 'required', 'string', 'max:255'],
             'description'           => ['nullable', 'string'],
             'short_description'     => ['nullable', 'string'],
             'cost'                  => ['nullable', 'numeric'],
@@ -55,7 +55,7 @@ class UpdateProductRequest extends FormRequest
             'stock_status'          => ['nullable', 'in:in_stock,out_of_stock'],
             'sku'                   => ['nullable'],
             'quantity'              => ['nullable', 'integer', 'min:0', 'max:2147483647'],
-            'price'                 => ['required_if:type,==,simple', 'nullable', 'numeric'],
+            'price'                 => ['sometimes', 'required_if:type,==,simple', 'nullable', 'numeric'],
             'store_id'              => ['nullable','exists:stores,id,deleted_at,NULL'],
             'categories'            => ['nullable', 'array'],
             'categories.*'          => ['exists:categories,id,deleted_at,NULL'],

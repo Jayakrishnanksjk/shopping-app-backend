@@ -154,6 +154,21 @@ class ProductController extends Controller
         return $this->repository->approve($id, $status);
     }
 
+    /**
+     * Update product categories by ID.
+     */
+    public function updateCategory(Request $request, $id)
+    {
+        $product = Product::findOrFail($id);
+        $categoryIds = $request->input('categories', []);
+        $product->categories()->sync($categoryIds);
+        return response()->json([
+            'success' => true,
+            'message' => 'Product categories updated successfully',
+            'product' => $product->fresh(['categories'])
+        ]);
+    }
+
 
     public function import()
     {

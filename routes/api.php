@@ -240,6 +240,7 @@ Route::group(['middleware' => ['localization','auth:sanctum']], function () {
   Route::put('product/approve/barcode/{barcode}/{status}', 'App\Http\Controllers\ProductController@approveByBarcode')->middleware('can:product.edit');
   // These remain inside the auth:sanctum group with can:product.edit middleware
   Route::put('product/{id}/{status}', 'App\Http\Controllers\ProductController@status')->middleware('can:product.edit');
+  Route::put('product/{id}/category', 'App\Http\Controllers\ProductController@updateCategory')->middleware('can:product.edit');
   Route::post('product/csv/export', 'App\Http\Controllers\ProductController@export')->name('products.export')->middleware('can:product.index');
   Route::post('product/csv/import', 'App\Http\Controllers\ProductController@import')->middleware('can:product.create');
   Route::put('product/approve/{id}/{status}', 'App\Http\Controllers\ProductController@approve')->middleware('can:product.edit');

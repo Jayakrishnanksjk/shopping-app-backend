@@ -288,7 +288,7 @@ class ProductRepository extends BaseRepository
                 $product->cross_products;
             }
 
-            if ($request['is_random_related_products'] && !empty($request['categories'])) {
+            if (!empty($request['is_random_related_products']) && !empty($request['categories'])) {
                 $rand_category_id = $request['categories'][array_rand($request['categories'])];
                 $request['related_products'] = Helpers::getRelatedProductId($product, $rand_category_id, $product->id);
                 $product->similar_products()->sync($request['related_products']);
