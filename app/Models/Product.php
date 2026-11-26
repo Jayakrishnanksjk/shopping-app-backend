@@ -77,7 +77,6 @@ class Product extends Model implements HasMedia
         'is_category_top',
         'maximum_purchase_limit',
         'minimum_purchase_limit',
-        'is_featured',
         'is_trending',
         'is_bestselling',
         'badge_text'
