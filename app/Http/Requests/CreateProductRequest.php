@@ -56,6 +56,8 @@ class CreateProductRequest extends FormRequest
             'is_featured' => ['min:0', 'max:1'],
             'is_category_top' => ['nullable', 'min:0', 'max:1'],
             'is_trending' => ['nullable', 'min:0', 'max:1'],
+            'is_bestselling' => ['nullable', 'min:0', 'max:1'],
+            'bestselling' => ['nullable', 'min:0', 'max:1'],
             'size_chart_image_id' => ['nullable','exists:attachments,id,deleted_at,NULL'],
             'secure_checkout' => ['min:0', 'max:1'],
             'safe_checkout' => ['min:0', 'max:1'],
