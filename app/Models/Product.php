@@ -80,7 +80,6 @@ class Product extends Model implements HasMedia
         'is_featured',
         'is_trending',
         'is_bestselling',
-        'bestselling',
         'badge_text'
     ];
 
