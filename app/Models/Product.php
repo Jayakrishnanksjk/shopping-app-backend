@@ -76,7 +76,12 @@ class Product extends Model implements HasMedia
         'created_by_id',
         'is_category_top',
         'maximum_purchase_limit',
-        'minimum_purchase_limit'
+        'minimum_purchase_limit',
+        'is_featured',
+        'is_trending',
+        'is_bestselling',
+        'bestselling',
+        'badge_text'
     ];
 
     protected $with = [
@@ -190,7 +195,7 @@ class Product extends Model implements HasMedia
 
     public function getIsTrendingAttribute()
     {
-        return $this->trending_product()->exists() ? 1 : 0;
+        return (!empty($this->attributes['is_trending']) || $this->trending_product()->exists()) ? 1 : 0;
     }
 
     public function bestselling_product(): \Illuminate\Database\Eloquent\Relations\HasOne
@@ -200,7 +205,12 @@ class Product extends Model implements HasMedia
 
     public function getBestsellingAttribute()
     {
-        return $this->bestselling_product()->exists() ? 1 : 0;
+        return (!empty($this->attributes['is_bestselling']) || !empty($this->attributes['bestselling']) || $this->bestselling_product()->exists()) ? 1 : 0;
+    }
+
+    public function getIsBestsellingAttribute()
+    {
+        return $this->getBestsellingAttribute();
     }
 
     public function getBadgeAttribute()
@@ -224,7 +234,7 @@ class Product extends Model implements HasMedia
         }
         if ($is_bestselling) {
             return (object) [
-                'text' => 'BEST SELLING',
+                'text' => 'BESTSELLER',
                 'bg_color' => '#4DA2FF',
                 'text_color' => '#FFFFFF'
             ];

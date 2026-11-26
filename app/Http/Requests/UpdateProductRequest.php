@@ -68,6 +68,8 @@ class UpdateProductRequest extends FormRequest
             'is_featured' => ['min:0', 'max:1'],
             'is_category_top' => ['nullable', 'min:0', 'max:1'],
             'is_trending' => ['nullable', 'min:0', 'max:1'],
+            'is_bestselling' => ['nullable', 'min:0', 'max:1'],
+            'bestselling' => ['nullable', 'min:0', 'max:1'],
             'is_cod' => ['min:0', 'max:1'],
             'is_return' => ['min:0', 'max:1'],
             'is_free_shipping' => ['min:0', 'max:1'],
