@@ -37,4 +37,11 @@ return [
         'topic_all' => env('FIREBASE_TOPIC_ALL', 'all_users'),
     ],
 
+    'springedge' => [
+        'api_key' => env('SPRING_EDGE_API_KEY') ?: env('SPRINGEDGE_API_KEY'),
+        'sender' => env('SPRING_EDGE_SENDER') ?: env('SPRINGEDGE_SENDER'),
+        'dlt_template_id' => env('SPRING_EDGE_DLT_TEMPLATE_ID') ?: env('SPRINGEDGE_DLT_TEMPLATE_ID'),
+        'dlt_entity_id' => env('SPRING_EDGE_DLT_ENTITY_ID') ?: env('SPRINGEDGE_DLT_ENTITY_ID'),
+    ],
+
 ];

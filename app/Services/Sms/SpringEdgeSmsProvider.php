@@ -9,10 +9,10 @@ class SpringEdgeSmsProvider implements SmsProviderInterface
 {
     public function send(string $phone, string $message): bool
     {
-        $apiKey = env('SPRING_EDGE_API_KEY') ?: env('SPRINGEDGE_API_KEY');
-        $sender = env('SPRING_EDGE_SENDER') ?: env('SPRINGEDGE_SENDER');
-        $dltTemplateId = env('SPRING_EDGE_DLT_TEMPLATE_ID') ?: env('SPRINGEDGE_DLT_TEMPLATE_ID');
-        $dltEntityId = env('SPRING_EDGE_DLT_ENTITY_ID') ?: env('SPRINGEDGE_DLT_ENTITY_ID');
+        $apiKey = config('services.springedge.api_key') ?: (env('SPRING_EDGE_API_KEY') ?: env('SPRINGEDGE_API_KEY'));
+        $sender = config('services.springedge.sender') ?: (env('SPRING_EDGE_SENDER') ?: env('SPRINGEDGE_SENDER'));
+        $dltTemplateId = config('services.springedge.dlt_template_id') ?: (env('SPRING_EDGE_DLT_TEMPLATE_ID') ?: env('SPRINGEDGE_DLT_TEMPLATE_ID'));
+        $dltEntityId = config('services.springedge.dlt_entity_id') ?: (env('SPRING_EDGE_DLT_ENTITY_ID') ?: env('SPRINGEDGE_DLT_ENTITY_ID'));
 
         if (empty($apiKey) || empty($sender)) {
             Log::warning("Spring Edge SMS not configured. Logging message: " . $message);
@@ -42,6 +42,8 @@ class SpringEdgeSmsProvider implements SmsProviderInterface
             }
 
             if (!empty($dltTemplateId)) {
+                $params['template_id'] = $dltTemplateId;
+                $params['dlttemplateid'] = $dltTemplateId;
                 $params['header_id'] = $dltTemplateId;
             }
 
